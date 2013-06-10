@@ -63,7 +63,7 @@ struct MemoryQueueEntry : public FixStateListObject
 	}
 };
 
-class MemoryController : public Controller
+class MemoryControllerConst : public Controller
 {
 	private:
 		Interconnect *cacheInterconnect_;
@@ -82,7 +82,7 @@ class MemoryController : public Controller
         RAMStats new_stats;
 
 	public:
-		MemoryController(W8 coreid, const char *name,
+		MemoryControllerConst(W8 coreid, const char *name,
 				 MemoryHierarchy *memoryHierarchy);
 		virtual bool handle_interconnect_cb(void *arg);
 		void print(ostream& os) const;

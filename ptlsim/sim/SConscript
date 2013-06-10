@@ -42,9 +42,11 @@ def machine_builder_func(env, m_name):
             Action("%s -c $SOURCE -t machine -n %s -o $TARGET" %
                 (env['config_gen'], m_name),
                 cmdstr="$CREATECOMSTR"))[0]
-    m_obj = env.Object(m_cpp, CXXFLAGS = "$CXXFLAGS -include %s"
-            % env['cache_type_h'].rfile().abspath)
+    # yclin
+    m_obj = env.Object(m_cpp, CXXFLAGS = "$CXXFLAGS -include %s -include %s"
+            % (env['cache_type_h'].rfile().abspath, env['memory_type_h'].rfile().abspath))
     env.Depends(m_obj, env['cache_type_h'])
+    env.Depends(m_obj, env['memory_type_h'])
 
     m_objs.append(m_obj)
     return m_objs

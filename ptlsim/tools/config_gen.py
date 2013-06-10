@@ -164,6 +164,13 @@ namespace Memory {
 };
 '''
 
+dram_module_func = '''
+namespace DRAM {
+    struct Config;
+    const Config* get_dram_config(int type);
+};
+'''
+
 core_cont_set_icache_bits = '''
         Controller** cont = machine.controller_hash.get(core_);
         assert(cont);
@@ -329,7 +336,7 @@ def get_arg_parser():
 def check_options(options, parser):
     if not options.config_filename:
         parser.error("Please provide configuration file.")
-    if not options.type or options.type not in ["core", "cache", "machine"]:
+    if not options.type or options.type not in ["core", "cache", "machine", "memory"]:
         parser.error("Please provide correct type : core, cache")
     if not options.output:
         parser.error("Please provide output file name.")
@@ -346,7 +353,7 @@ def read_config(config_filename):
 
 def check_config(config, options):
     type_conf = config[options.type]
-    if options.type != "cache" and not type_conf.has_key(options.name):
+    if options.type not in ["cache", "memory"] and not type_conf.has_key(options.name):
         _error("Invalid configuration name.")
 
 def get_requested_type_config(config, config_type):
@@ -423,7 +430,7 @@ def write_cont_logic(config, m_conf, of, n1, n2):
         cache_cfg = config[n2][cache["type"]]
         name_pfx = cache["name_prefix"]
         base = cache_cfg["base"]
-        if n2 == "memory":
+        if n2 == "memory" and cache["type"] == "dram_cont":
             c_type = "0"
         else:
             c_type = cache["type"].upper()
@@ -720,6 +727,61 @@ def generate_cache_logic(config, options):
         of.write("}\n")
         of.write("};\n")
 
+def generate_memory_header(config, options):
+    with open(options.output, 'w') as of:
+        of.write(auto_gen_header % " ")
+        of.write("enum {\n")
+        for memory,cfg in config["memory"].items():
+            if cfg['base'] == 'dram_module':
+                of.write("\t%s,\n" % memory.upper())
+        of.write("};\n")
+        of.write(dram_module_func)
+
+def generate_memory_logic(config, options):
+    with open(options.output, 'w') as of:
+        of.write(auto_gen_header % " ")
+        of.write("\n#include <globals.h>\n")
+        of.write("#include <ptlsim.h>\n")
+        of.write("#include <memoryModule.h>\n")
+        of.write("\nnamespace DRAM {\n\n")
+        typedefs = {}
+        for memory, cfg in config["memory"].items():
+            if cfg['base'] != 'dram_module': continue
+            of.write("static const Config %s_CONFIG(\n" % memory.upper())
+            of.write("\t/*int DEVICE*/%d, /*int BANK*/%d, /*int COLUMN*/%d, /*int SIZE*/%d,\n" %
+                (cfg["params"]["DEVICE"], cfg["params"]["BANK"], 
+                cfg["params"]["COLUMN"], cfg["params"]["SIZE"]))
+            of.write("\t/*float tCK*/%g, /*int tCMD*/%d,\n" %
+                (cfg["params"]["tCK"], cfg["params"]["tCMD"]))
+            of.write("\t/*int tCL*/%d, /*int tCWL*/%d, /*int tAL*/%d, /*int tBL*/%d,\n" %
+                (cfg["params"]["tCL"], cfg["params"]["tCWL"], 
+                cfg["params"]["tAL"], cfg["params"]["tBL"]))
+            of.write("\t/*int tRAS*/%d, /*int tRCD*/%d, /*int tRP*/%d,\n" %
+                (cfg["params"]["tRAS"], cfg["params"]["tRCD"], cfg["params"]["tRP"]))
+            of.write("\t/*int tRRD*/%d, /*int tCCD*/%d, /*int tFAW*/%d,\n" %
+                (cfg["params"]["tRRD"], cfg["params"]["tCCD"], cfg["params"]["tFAW"]))
+            of.write("\t/*int tRTP*/%d, /*int tWTR*/%d, /*int tWR*/%d, /*int tRTRS*/%d,\n" %
+                (cfg["params"]["tRTP"], cfg["params"]["tWTR"], 
+                cfg["params"]["tWR"], cfg["params"]["tRTRS"]))
+            of.write("\t/*int tRFC*/%d, /*int tREFI*/%d,\n" %
+                (cfg["params"]["tRFC"], cfg["params"]["tREFI"]))
+            of.write("\t/*int tCKE*/%d, /*int tXP*/%d\n" %
+                (cfg["params"]["tCKE"], cfg["params"]["tXP"]))
+            of.write(");\n")
+            of.write("\n")
+
+        # Now write function 'get_cachelines'
+        of.write("const Config* get_dram_config(int memory_type)\n")
+        of.write("{\n")
+        of.write("\tswitch(memory_type) {\n")
+        for memory, cfg in config["memory"].items():
+            if cfg['base'] != 'dram_module': continue
+            of.write("\t\tcase %s:\n\t\t\treturn &%s_CONFIG;\n" % 
+                (memory.upper(), memory.upper()))
+        of.write("\t\tdefault: assert(0);\n\t}\n")
+        of.write("}\n")
+        of.write("};\n")
+
 def gen_output_file(config, options):
     if options.type == "machine":
         generate_machine(config, options)
@@ -727,6 +789,10 @@ def gen_output_file(config, options):
         generate_cache_header(config, options)
     elif options.type == "cache" and options.name == "logic":
         generate_cache_logic(config, options)
+    elif options.type == "memory" and options.name == "header":
+        generate_memory_header(config, options)
+    elif options.type == "memory" and options.name == "logic":
+        generate_memory_logic(config, options)
     elif options.type == "core":
         write_params_file(config, options)
 

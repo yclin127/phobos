@@ -233,8 +233,12 @@ namespace Memory {
         cpuControllers_.push(cont);
     }
 
-    void add_cache_mem_controller(Controller* cont) {
+    void add_cache_controller(Controller* cont) {
         allControllers_.push(cont);
+    }
+
+    void add_mem_controller(Controller* cont) {
+        memoryController_ = cont;
     }
 
     void add_interconnect(Interconnect* conn) {

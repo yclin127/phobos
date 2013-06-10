@@ -106,6 +106,10 @@ class Controller
         {
             memoryHierarchy_ = NULL;
         }
+        
+#if 1 // yclin
+        virtual void clock() {}
+#endif
 
 		virtual bool handle_interconnect_cb(void* arg)=0;
 		virtual int access_fast_path(Interconnect *interconnect,

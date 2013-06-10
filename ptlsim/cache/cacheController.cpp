@@ -60,7 +60,7 @@ CacheController::CacheController(W8 coreid, const char *name,
 	, prefetchDelay_(1)
     , new_stats(name, &memoryHierarchy->get_machine())
 {
-    memoryHierarchy_->add_cache_mem_controller(this);
+    memoryHierarchy_->add_cache_controller(this);
 
     cacheLines_ = get_cachelines(type);
 

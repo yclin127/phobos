@@ -43,7 +43,7 @@
 #include <statelist.h>
 
 #include <cpuController.h>
-#include <memoryController.h>
+#include <memoryControllerConst.h>
 
 #include <yaml/yaml.h>
 
@@ -383,7 +383,7 @@ void MemoryHierarchy::annul_request(W8 coreid,
 
 int MemoryHierarchy::get_core_pending_offchip_miss(W8 coreid)
 {
-	return ((MemoryController*)memoryController_)->
+	return ((MemoryControllerConst*)memoryController_)->
 		get_no_pending_request(coreid);
 }
 

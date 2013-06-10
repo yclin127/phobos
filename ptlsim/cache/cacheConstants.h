@@ -50,9 +50,11 @@ namespace Memory{
 
 	/*
 	 * Main memory outstanding queue size
-	 * default size: 128
+	 * default size: 64
 	 */
-	const int MEM_REQ_NUM = 128;
+    const int MEM_REQ_NUM = 64;
+    const int MEM_TRANS_NUM = 64;
+    const int MEM_CMD_NUM = 32;
 
 	/*
 	 * Main memory total bank number

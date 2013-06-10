@@ -1,0 +1,29 @@
+# SConscript for memory subdirectory
+
+# Import envrionment
+Import('env')
+
+###################################
+# memory related autogeneration
+##################################
+
+memory_type_h = env.Command("memoryTypes.h", env['config_file'],
+        Action("%s -c $SOURCE -t memory -n header -o $TARGET" %
+            (env['config_gen']),
+        cmdstr="$CREATECOMSTR"))[0]
+
+env['memory_type_h'] = memory_type_h
+
+memory_cpp = env.Command("memoryTypes.cpp", env['config_file'],
+        Action("%s -c $SOURCE -t memory -n logic -o $TARGET" %
+            (env['config_gen']),
+            cmdstr="$CREATECOMSTR"))[0]
+
+# Now get list of .cpp files
+src_files = Glob('*.cpp')
+
+objs = env.Object(src_files, CXXFLAGS = "$CXXFLAGS -include %s" %
+        memory_type_h.rfile().abspath)
+env.Depends(objs, memory_type_h)
+
+Return('objs')

@@ -737,7 +737,7 @@ static void sdl_refresh(DisplayState *ds)
             }
             break;
 	case SDL_VIDEORESIZE:
-        {
+        if (0) {
 	    SDL_ResizeEvent *rev = &ev->resize;
             int bpp = real_screen->format->BitsPerPixel;
             if (bpp != 16 && bpp != 32)

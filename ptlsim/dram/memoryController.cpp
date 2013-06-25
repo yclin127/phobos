@@ -25,7 +25,7 @@ MemoryController::MemoryController(W8 coreid, const char *name,
     option(type,  "type",  DRAM_DDR3_800);
 #undef option*/
 
-    Config config = *get_dram_config(type);
+    config = *get_dram_config(type);
     config.channelcount = 1;
     config.rankcount = ram_size/config.ranksize/config.channelcount;
     
@@ -33,6 +33,29 @@ MemoryController::MemoryController(W8 coreid, const char *name,
     bankcount = config.bankcount;
     refresh_interval = config.rank_timing.refresh_interval;
     channel = new Channel(&config);
+
+    {
+        int channel, rank;
+        for (channel=0; (1<<channel)<config.channelcount; channel+=1);
+        for (rank=0; (1<<rank)<config.rankcount; rank+=1);
+
+        int offset = 0;
+        mapping.column.offset  = offset; offset +=
+        mapping.column.width   = 6;
+        mapping.channel.offset = offset; offset +=
+        mapping.channel.width  = channel;
+        mapping.bank.offset    = offset; offset +=
+        mapping.bank.width     = 3;
+        mapping.rank.offset    = offset; offset +=
+        mapping.rank.width     = rank;
+        mapping.row.offset     = offset; offset +=
+        mapping.row.width      = 48-offset;
+    }
+
+    {
+        policy.max_row_hits = 4;
+        policy.max_row_idle = 0;
+    }
     
     Coordinates coordinates = {0};
     int refresh_step = refresh_interval/rankcount;
@@ -118,6 +141,20 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates *coo
     
     finishTime = channel->getFinishTime(issueTime, type, *coordinates);
     
+    static const char* mne[] = {
+        "COMMAND_activate",
+        "COMMAND_precharge",
+        "COMMAND_read",
+        "COMMAND_write",
+        "COMMAND_read_precharge",
+        "COMMAND_write_precharge",
+        "COMMAND_refresh",
+        "COMMAND_powerup",
+        "COMMAND_powerdown",
+    };
+
+    cerr << mne[type] << " " << issueTime << " " << finishTime << endl;
+    
     queueEntry->request     = request;
     queueEntry->type        = type;
     queueEntry->coordinates = *coordinates;
@@ -143,7 +180,7 @@ void MemoryController::doScheduling(long clock)
     
     /** Transaction to Command */
     
-    {
+    /*{
         // Refresh policy
         Coordinates coordinates = {0};
         for (coordinates.rank = 0; coordinates.rank < rankcount; ++coordinates.rank) {
@@ -173,7 +210,7 @@ void MemoryController::doScheduling(long clock)
             if (!addCommand(clock, COMMAND_refresh, &coordinates, NULL)) continue;
             rank.refreshTime += refresh_interval;
         }
-    }
+    }*/
     
     // Schedule policy
     {
@@ -184,13 +221,13 @@ void MemoryController::doScheduling(long clock)
             BankData &bank = channel->getBankData(*coordinates);
             
             // make way for Refresh
-            if (clock >= rank.refreshTime) continue;
+            //if (clock >= rank.refreshTime) continue;
             
             // Power up
-            if (rank.is_sleeping) {
+            /*if (rank.is_sleeping) {
                 if (!addCommand(clock, COMMAND_powerup, coordinates, NULL)) continue;
                 rank.is_sleeping = false;
-            }
+            }*/
             
             // Precharge
             if (bank.rowBuffer != -1 && (bank.rowBuffer != coordinates->row || 
@@ -236,7 +273,7 @@ void MemoryController::doScheduling(long clock)
     }
 
     // Precharge policy
-    {
+    /*{
         Coordinates coordinates = {0};
         for (coordinates.rank = 0; coordinates.rank < rankcount; ++coordinates.rank) {
             RankData &rank = channel->getRankData(coordinates);
@@ -251,10 +288,10 @@ void MemoryController::doScheduling(long clock)
                 bank.rowBuffer = -1;
             }
         }
-    }
+    }*/
     
     // Power down policy
-    {
+    /*{
         Coordinates coordinates = {0};
         for (coordinates.rank = 0; coordinates.rank < rankcount; ++coordinates.rank) {
             RankData &rank = channel->getRankData(coordinates);
@@ -268,7 +305,7 @@ void MemoryController::doScheduling(long clock)
             if (!addCommand(clock, COMMAND_powerdown, &coordinates, NULL)) continue;
             rank.is_sleeping = true;
         }
-    }
+    }*/
     
     /** Command & Request retirement */
     

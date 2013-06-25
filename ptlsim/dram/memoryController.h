@@ -101,6 +101,7 @@ class MemoryController : public Controller
         AddressMapping mapping;
         Policy policy;
     
+        Config config;
         int rankcount;
         int bankcount;
         int refresh_interval;

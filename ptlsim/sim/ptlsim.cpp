@@ -1468,7 +1468,7 @@ extern "C" void update_progress() {
 
     ptl_logfile << sb, endl;
     if (!config.quiet) {
-        cerr << "\n  " << sb;
+        cerr << sb << endl;
     }
 
     last_printed_status_at_ticks = ticks;

@@ -74,6 +74,7 @@ struct Config {
     int bankcount;
     int ranksize;
     
+    Config() {}
     Config(
       int DEVICE, int BANK, int COLUMN, int SIZE, 
       float tCK, int tCMD, 
@@ -90,7 +91,7 @@ struct Config {
         bankcount = BANK;
         ranksize = SIZE;
         
-        channel_timing.act_to_any = tCMD;
+        channel_timing.any_to_any = tCMD;
         channel_timing.act_to_any = tCMD;
         channel_timing.read_to_read = tBL+tRTRS;
         channel_timing.read_to_write = tCL+tBL+tRTRS-tCWL;

@@ -97,6 +97,10 @@ void MemoryHierarchy::clock()
 		cpuController->clock();
 	}
 
+#if 1 /* yclin */
+	memoryController_->clock();
+#endif
+
 	Event *event;
 	while(!eventQueue_.empty()) {
 		event = eventQueue_.head();

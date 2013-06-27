@@ -72,7 +72,7 @@ struct Config {
     int channelcount;
     int rankcount;
     int bankcount;
-    int ranksize;
+    long ranksize;
     
     Config() {}
     Config(
@@ -89,7 +89,7 @@ struct Config {
         channelcount = -1;
         rankcount = -1;
         bankcount = BANK;
-        ranksize = SIZE;
+        ranksize = SIZE<<20;
         
         channel_timing.any_to_any = tCMD;
         channel_timing.act_to_any = tCMD;

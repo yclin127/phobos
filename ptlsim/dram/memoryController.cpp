@@ -35,21 +35,22 @@ MemoryController::MemoryController(W8 coreid, const char *name,
     channel = new Channel(&config);
 
     {
-        int channel, rank;
+        int channel, rank, row;
         for (channel=0; (1<<channel)<config.channelcount; channel+=1);
         for (rank=0; (1<<rank)<config.rankcount; rank+=1);
+        for (row=0; (1L<<(row+16))<config.ranksize; row+=1);
 
-        int offset = 0;
-        mapping.column.offset  = offset; offset +=
-        mapping.column.width   = 6;
+        int offset = 6;
         mapping.channel.offset = offset; offset +=
         mapping.channel.width  = channel;
+        mapping.column.offset  = offset; offset +=
+        mapping.column.width   = 7;
         mapping.bank.offset    = offset; offset +=
         mapping.bank.width     = 3;
         mapping.rank.offset    = offset; offset +=
         mapping.rank.width     = rank;
         mapping.row.offset     = offset; offset +=
-        mapping.row.width      = 48-offset;
+        mapping.row.width      = row;
     }
 
     {
@@ -94,7 +95,7 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
 
     /* if queue is full return false to indicate failure */
     if(queueEntry == NULL) {
-        memdebug("Transaction queue is full\n");
+        //memdebug("Transaction queue is full\n");
         return false;
     }
 
@@ -104,6 +105,9 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     
     W64 address = request->request->get_physical_address();
     Coordinates &coordinates = queueEntry->coordinates;
+
+    if (address > ram_size)
+        cerr << address << " " << ram_size << endl;
     
     coordinates.channel = mapping.channel.value(address);
     coordinates.rank    = mapping.rank.value(address);
@@ -129,7 +133,7 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates *coo
 
     /* if queue is full return false to indicate failure */
     if(queueEntry == NULL) {
-        memdebug("Command queue is full\n");
+        //memdebug("Command queue is full\n");
         return false;
     }
     
@@ -153,7 +157,17 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates *coo
         "COMMAND_powerdown",
     };
 
-    cerr << mne[type] << " " << issueTime << " " << finishTime << endl;
+    cerr << mne[type] 
+         << " " << issueTime 
+         << " " << finishTime 
+         << endl
+         << "    "
+         << " " << coordinates->channel << ":" << mapping.channel.width << ":" << mapping.channel.offset
+         << " " << coordinates->rank << ":" << mapping.rank.width << ":" << mapping.rank.offset
+         << " " << coordinates->bank << ":" << mapping.bank.width << ":" << mapping.bank.offset
+         << " " << coordinates->row << ":" << mapping.row.width << ":" << mapping.row.offset
+         << " " << coordinates->column << ":" << mapping.column.width << ":" << mapping.column.offset
+         << endl;
     
     queueEntry->request     = request;
     queueEntry->type        = type;
@@ -348,7 +362,7 @@ bool MemoryController::handle_interconnect_cb(void *arg)
 {
     Message *message = (Message*)arg;
 
-    memdebug("Received message in Memory controller: ", *message, endl);
+    //memdebug("Received message in Memory controller: ", *message, endl);
 
     if(message->hasData && message->request->get_type() !=
             MEMORY_OP_UPDATE)
@@ -399,7 +413,7 @@ bool MemoryController::handle_interconnect_cb(void *arg)
 
     /* if queue is full return false to indicate failure */
     if(queueEntry == NULL) {
-        memdebug("Memory queue is full\n");
+        //memdebug("Memory queue is full\n");
         return false;
     }
 
@@ -431,8 +445,7 @@ bool MemoryController::access_completed_cb(void *arg)
     if(!queueEntry->annuled) {
 
         /* Send response back to cache */
-        memdebug("Memory access done for Request: ", *queueEntry->request,
-                endl);
+        //memdebug("Memory access done for Request: ", *queueEntry->request, endl);
 
         wait_interconnect_cb(queueEntry);
     } else {
@@ -465,7 +478,7 @@ bool MemoryController::wait_interconnect_cb(void *arg)
     message.request = queueEntry->request;
     message.hasData = true;
 
-    memdebug("Memory sending message: ", message);
+    //memdebug("Memory sending message: ", message);
     success = cacheInterconnect_->get_controller_request_signal()->
         emit(&message);
     /* Free the message */

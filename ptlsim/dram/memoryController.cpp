@@ -105,9 +105,6 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     
     W64 address = request->request->get_physical_address();
     Coordinates &coordinates = queueEntry->coordinates;
-
-    if (address > ram_size)
-        cerr << address << " " << ram_size << endl;
     
     coordinates.channel = mapping.channel.value(address);
     coordinates.rank    = mapping.rank.value(address);
@@ -129,6 +126,12 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
 
 bool MemoryController::addCommand(long clock, CommandType type, Coordinates *coordinates, RequestEntry *request)
 {
+    int64_t readyTime, issueTime, finishTime;
+    
+    readyTime = channel->getReadyTime(type, *coordinates);
+    issueTime = clock;
+    if (readyTime > issueTime) return false;
+    
     CommandEntry *queueEntry = pendingCommands_.alloc();
 
     /* if queue is full return false to indicate failure */
@@ -137,37 +140,7 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates *coo
         return false;
     }
     
-    int64_t readyTime, issueTime, finishTime;
-    
-    readyTime = channel->getReadyTime(type, *coordinates);
-    issueTime = clock;
-    if (readyTime > issueTime) return false;
-    
     finishTime = channel->getFinishTime(issueTime, type, *coordinates);
-    
-    static const char* mne[] = {
-        "COMMAND_activate",
-        "COMMAND_precharge",
-        "COMMAND_read",
-        "COMMAND_write",
-        "COMMAND_read_precharge",
-        "COMMAND_write_precharge",
-        "COMMAND_refresh",
-        "COMMAND_powerup",
-        "COMMAND_powerdown",
-    };
-
-    cerr << mne[type] 
-         << " " << issueTime 
-         << " " << finishTime 
-         << endl
-         << "    "
-         << " " << coordinates->channel << ":" << mapping.channel.width << ":" << mapping.channel.offset
-         << " " << coordinates->rank << ":" << mapping.rank.width << ":" << mapping.rank.offset
-         << " " << coordinates->bank << ":" << mapping.bank.width << ":" << mapping.bank.offset
-         << " " << coordinates->row << ":" << mapping.row.width << ":" << mapping.row.offset
-         << " " << coordinates->column << ":" << mapping.column.width << ":" << mapping.column.offset
-         << endl;
     
     queueEntry->request     = request;
     queueEntry->type        = type;
@@ -194,7 +167,7 @@ void MemoryController::doScheduling(long clock)
     
     /** Transaction to Command */
     
-    /*{
+    {
         // Refresh policy
         Coordinates coordinates = {0};
         for (coordinates.rank = 0; coordinates.rank < rankcount; ++coordinates.rank) {
@@ -224,7 +197,7 @@ void MemoryController::doScheduling(long clock)
             if (!addCommand(clock, COMMAND_refresh, &coordinates, NULL)) continue;
             rank.refreshTime += refresh_interval;
         }
-    }*/
+    }
     
     // Schedule policy
     {
@@ -235,13 +208,13 @@ void MemoryController::doScheduling(long clock)
             BankData &bank = channel->getBankData(*coordinates);
             
             // make way for Refresh
-            //if (clock >= rank.refreshTime) continue;
+            if (clock >= rank.refreshTime) continue;
             
             // Power up
-            /*if (rank.is_sleeping) {
+            if (rank.is_sleeping) {
                 if (!addCommand(clock, COMMAND_powerup, coordinates, NULL)) continue;
                 rank.is_sleeping = false;
-            }*/
+            }
             
             // Precharge
             if (bank.rowBuffer != -1 && (bank.rowBuffer != coordinates->row || 
@@ -287,7 +260,7 @@ void MemoryController::doScheduling(long clock)
     }
 
     // Precharge policy
-    /*{
+    {
         Coordinates coordinates = {0};
         for (coordinates.rank = 0; coordinates.rank < rankcount; ++coordinates.rank) {
             RankData &rank = channel->getRankData(coordinates);
@@ -302,10 +275,10 @@ void MemoryController::doScheduling(long clock)
                 bank.rowBuffer = -1;
             }
         }
-    }*/
+    }
     
     // Power down policy
-    /*{
+    {
         Coordinates coordinates = {0};
         for (coordinates.rank = 0; coordinates.rank < rankcount; ++coordinates.rank) {
             RankData &rank = channel->getRankData(coordinates);
@@ -319,15 +292,14 @@ void MemoryController::doScheduling(long clock)
             if (!addCommand(clock, COMMAND_powerdown, &coordinates, NULL)) continue;
             rank.is_sleeping = true;
         }
-    }*/
+    }
     
     /** Command & Request retirement */
-    
     {
         CommandEntry *command;
         foreach_list_mutable(pendingCommands_.list(), command, entry, nextentry) {
             
-            if (clock < command->issueTime) break; // in-order
+            if (clock < command->issueTime) continue; // in-order
             
             switch (command->type) {
                 case COMMAND_read:

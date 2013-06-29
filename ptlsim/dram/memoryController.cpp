@@ -14,49 +14,13 @@
 
 using namespace DRAM;
 
-MemoryController::MemoryController(W8 coreid, const char *name,
-        MemoryHierarchy *memoryHierarchy, int type) :
-    Controller(coreid, name, memoryHierarchy)
+MemoryController::MemoryController(Config &config, AddressMapping &mapping, Policy &policy) :
+    mapping(mapping), policy(policy)
 {
-    memoryHierarchy_->add_mem_controller(this);
-    
-    /*BaseMachine &machine = memoryHierarchy_->get_machine();
-#define option(var,opt,val) machine.get_option(name, opt, var) || (var = val)
-    option(type,  "type",  DRAM_DDR3_800);
-#undef option*/
-
-    config = *get_dram_config(type);
-    config.channelcount = 1;
-    config.rankcount = ram_size/config.ranksize/config.channelcount;
-    
     rankcount = config.rankcount;
     bankcount = config.bankcount;
     refresh_interval = config.rank_timing.refresh_interval;
     channel = new Channel(&config);
-
-    {
-        int channel, rank, row;
-        for (channel=0; (1<<channel)<config.channelcount; channel+=1);
-        for (rank=0; (1<<rank)<config.rankcount; rank+=1);
-        for (row=0; (1L<<(row+16))<config.ranksize; row+=1);
-
-        int offset = 6;
-        mapping.channel.offset = offset; offset +=
-        mapping.channel.width  = channel;
-        mapping.column.offset  = offset; offset +=
-        mapping.column.width   = 7;
-        mapping.bank.offset    = offset; offset +=
-        mapping.bank.width     = 3;
-        mapping.rank.offset    = offset; offset +=
-        mapping.rank.width     = rank;
-        mapping.row.offset     = offset; offset +=
-        mapping.row.width      = row;
-    }
-
-    {
-        policy.max_row_hits = 4;
-        policy.max_row_idle = 0;
-    }
     
     Coordinates coordinates = {0};
     int refresh_step = refresh_interval/rankcount;
@@ -76,12 +40,6 @@ MemoryController::MemoryController(W8 coreid, const char *name,
             bank.rowBuffer = -1;
         }
     }
-    
-    SET_SIGNAL_CB(name, "_Access_Completed", accessCompleted_,
-            &MemoryController::access_completed_cb);
-    
-    SET_SIGNAL_CB(name, "_Wait_Interconnect", waitInterconnect_,
-            &MemoryController::wait_interconnect_cb);
 }
 
 MemoryController::~MemoryController()
@@ -111,6 +69,14 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     coordinates.bank    = mapping.bank.value(address);
     coordinates.row     = mapping.row.value(address);
     coordinates.column  = mapping.column.value(address);
+    
+    cerr << "trans"
+        << "-" << coordinates.channel
+        << "-" << coordinates.rank
+        << "-" << coordinates.bank
+        << "-" << coordinates.row
+        << "-" << coordinates.column
+        << endl;
     
     RankData &rank = channel->getRankData(coordinates);
     BankData &bank = channel->getBankData(coordinates);
@@ -151,7 +117,7 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates *coo
     return true;
 }
 
-void MemoryController::doScheduling(long clock)
+void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
 {
     /** Request to Transaction */
     
@@ -318,7 +284,63 @@ void MemoryController::doScheduling(long clock)
     }
 }
 
-void MemoryController::register_interconnect(Interconnect *interconnect,
+MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
+        MemoryHierarchy *memoryHierarchy, int type) :
+    Controller(coreid, name, memoryHierarchy)
+{
+    memoryHierarchy_->add_mem_controller(this);
+    
+    {
+        BaseMachine &machine = memoryHierarchy_->get_machine();
+#define option(var,opt,val) machine.get_option(name, opt, var) || (var = val)
+        option(channelcount, "channel",  1);
+        option(policy.max_row_hits, "max_row_hits", 4);
+        option(policy.max_row_idle, "max_row_idle", 0);
+#undef option
+    }
+    
+    {
+        config = *get_dram_config(type);
+        config.channelcount = channelcount;
+        config.rankcount = ram_size/config.ranksize/config.channelcount;
+    }
+     
+    {
+        int channel, rank, row;
+        for (channel=0; (1<<channel)<config.channelcount; channel+=1);
+        for (rank=0; (1<<rank)<config.rankcount; rank+=1);
+        for (row=0; (1L<<(row+16))<config.ranksize; row+=1);
+
+        int offset = 6;
+        mapping.channel.offset = offset; offset +=
+        mapping.channel.width  = channel;
+        mapping.column.offset  = offset; offset +=
+        mapping.column.width   = 7;
+        mapping.bank.offset    = offset; offset +=
+        mapping.bank.width     = 3;
+        mapping.rank.offset    = offset; offset +=
+        mapping.rank.width     = rank;
+        mapping.row.offset     = offset; offset +=
+        mapping.row.width      = row;
+    }
+    
+    controller = new MemoryController*[channelcount];
+    for (int channel=0; channel<channelcount; ++channel) {
+        controller[channel] = new MemoryController(config, mapping, policy);
+    }
+    
+    SET_SIGNAL_CB(name, "_Access_Completed", accessCompleted_,
+            &MemoryControllerHub::access_completed_cb);
+    
+    SET_SIGNAL_CB(name, "_Wait_Interconnect", waitInterconnect_,
+            &MemoryControllerHub::wait_interconnect_cb);
+}
+
+MemoryControllerHub::~MemoryControllerHub()
+{
+}
+
+void MemoryControllerHub::register_interconnect(Interconnect *interconnect,
         int type)
 {
     switch(type) {
@@ -330,9 +352,11 @@ void MemoryController::register_interconnect(Interconnect *interconnect,
     }
 }
 
-bool MemoryController::handle_interconnect_cb(void *arg)
+bool MemoryControllerHub::handle_interconnect_cb(void *arg)
 {
     Message *message = (Message*)arg;
+    
+    int channel = mapping.channel.value(message->request->get_physical_address());
 
     //memdebug("Received message in Memory controller: ", *message, endl);
 
@@ -353,7 +377,7 @@ bool MemoryController::handle_interconnect_cb(void *arg)
      */
     if(message->request->get_type() == MEMORY_OP_UPDATE) {
         RequestEntry *entry;
-        foreach_list_mutable_backwards(pendingRequests_.list(),
+        foreach_list_mutable_backwards(controller[channel]->pendingRequests_.list(),
                 entry, entry_t, nextentry_t) {
             if(entry->request->get_physical_address() ==
                     message->request->get_physical_address()) {
@@ -381,7 +405,7 @@ bool MemoryController::handle_interconnect_cb(void *arg)
         }
     }
 
-    RequestEntry *queueEntry = pendingRequests_.alloc();
+    RequestEntry *queueEntry = controller[channel]->pendingRequests_.alloc();
 
     /* if queue is full return false to indicate failure */
     if(queueEntry == NULL) {
@@ -389,7 +413,7 @@ bool MemoryController::handle_interconnect_cb(void *arg)
         return false;
     }
 
-    if(pendingRequests_.isFull()) {
+    if(controller[channel]->pendingRequests_.isFull()) {
         memoryHierarchy_->set_controller_full(this, true);
     }
 
@@ -402,17 +426,20 @@ bool MemoryController::handle_interconnect_cb(void *arg)
     return true;
 }
 
-void MemoryController::print(ostream& os) const
+void MemoryControllerHub::print(ostream& os) const
 {
     os << "---Memory-Controller: ", get_name(), endl;
-    if(pendingRequests_.count() > 0)
-        os << "Queue : ", pendingRequests_, endl;
+    for (int channel=0; channel<channelcount; ++channel) {
+        os << "Queue ", channel, ": ", controller[channel]->pendingRequests_, endl;
+    }
     os << "---End Memory-Controller: ", get_name(), endl;
 }
 
-bool MemoryController::access_completed_cb(void *arg)
+bool MemoryControllerHub::access_completed_cb(void *arg)
 {
     RequestEntry *queueEntry = (RequestEntry*)arg;
+    
+    int channel = mapping.channel.value(queueEntry->request->get_physical_address());
 
     if(!queueEntry->annuled) {
 
@@ -423,15 +450,17 @@ bool MemoryController::access_completed_cb(void *arg)
     } else {
         queueEntry->request->decRefCounter();
         ADD_HISTORY_REM(queueEntry->request);
-        pendingRequests_.free(queueEntry);
+        controller[channel]->pendingRequests_.free(queueEntry);
     }
 
     return true;
 }
 
-bool MemoryController::wait_interconnect_cb(void *arg)
+bool MemoryControllerHub::wait_interconnect_cb(void *arg)
 {
     RequestEntry *queueEntry = (RequestEntry*)arg;
+    
+    int channel = mapping.channel.value(queueEntry->request->get_physical_address());
 
     bool success = false;
 
@@ -439,7 +468,7 @@ bool MemoryController::wait_interconnect_cb(void *arg)
     if(queueEntry->request->get_type() == MEMORY_OP_UPDATE) {
         queueEntry->request->decRefCounter();
         ADD_HISTORY_REM(queueEntry->request);
-        pendingRequests_.free(queueEntry);
+        controller[channel]->pendingRequests_.free(queueEntry);
         return true;
     }
 
@@ -462,47 +491,53 @@ bool MemoryController::wait_interconnect_cb(void *arg)
     } else {
         queueEntry->request->decRefCounter();
         ADD_HISTORY_REM(queueEntry->request);
-        pendingRequests_.free(queueEntry);
+        controller[channel]->pendingRequests_.free(queueEntry);
 
-        if(!pendingRequests_.isFull()) {
+        if(!controller[channel]->pendingRequests_.isFull()) {
             memoryHierarchy_->set_controller_full(this, false);
         }
     }
     return true;
 }
 
-void MemoryController::clock()
+void MemoryControllerHub::clock()
 {
-    channel->cycle(clock_);
-    doScheduling(clock_);
+    for (int channel=0; channel<channelcount; ++channel) {
+        controller[channel]->channel->cycle(clock_);
+        controller[channel]->doScheduling(clock_, accessCompleted_);
+    }
     
     clock_ += 1;
 }
 
-void MemoryController::annul_request(MemoryRequest *request)
+void MemoryControllerHub::annul_request(MemoryRequest *request)
 {
+    int channel = mapping.channel.value(request->get_physical_address());
+    
     RequestEntry *queueEntry;
-    foreach_list_mutable(pendingRequests_.list(), queueEntry,
+    foreach_list_mutable(controller[channel]->pendingRequests_.list(), queueEntry,
             entry, nextentry) {
         if(queueEntry->request->is_same(request)) {
             queueEntry->annuled = true;
             if(!queueEntry->issued) {
                 queueEntry->request->decRefCounter();
                 ADD_HISTORY_REM(queueEntry->request);
-                pendingRequests_.free(queueEntry);
+                controller[channel]->pendingRequests_.free(queueEntry);
             }
         }
     }
 }
 
-int MemoryController::get_no_pending_request(W8 coreid)
+int MemoryControllerHub::get_no_pending_request(W8 coreid)
 {
     int count = 0;
     RequestEntry *queueEntry;
-    foreach_list_mutable(pendingRequests_.list(), queueEntry,
-            entry, nextentry) {
-        if(queueEntry->request->get_coreid() == coreid)
-            count++;
+    for (int channel=0; channel<channelcount; ++channel) {
+        foreach_list_mutable(controller[channel]->pendingRequests_.list(), queueEntry,
+                entry, nextentry) {
+            if(queueEntry->request->get_coreid() == coreid)
+                count++;
+        }
     }
     return count;
 }
@@ -512,28 +547,28 @@ int MemoryController::get_no_pending_request(W8 coreid)
  *
  * @param out YAML Object
  */
-void MemoryController::dump_configuration(YAML::Emitter &out) const
+void MemoryControllerHub::dump_configuration(YAML::Emitter &out) const
 {
     out << YAML::Key << get_name() << YAML::Value << YAML::BeginMap;
 
     YAML_KEY_VAL(out, "type", "dram_module");
     YAML_KEY_VAL(out, "RAM_size", ram_size); /* ram_size is from QEMU */
-    YAML_KEY_VAL(out, "pending_queue_size", pendingRequests_.size());
+    //YAML_KEY_VAL(out, "pending_queue_size", pendingRequests_.size());
 
     out << YAML::EndMap;
 }
 
 /* Memory Controller Builder */
-struct MemoryControllerBuilder : public ControllerBuilder
+struct MemoryControllerHubBuilder : public ControllerBuilder
 {
-    MemoryControllerBuilder(const char* name) :
+    MemoryControllerHubBuilder(const char* name) :
         ControllerBuilder(name)
     {}
 
     Controller* get_new_controller(W8 coreid, W8 type,
             MemoryHierarchy& mem, const char *name) {
-        return new MemoryController(coreid, name, &mem, type);
+        return new MemoryControllerHub(coreid, name, &mem, type);
     }
 };
 
-MemoryControllerBuilder memControllerBuilder("dram_module");
+MemoryControllerHubBuilder memControllerBuilder("dram_module");

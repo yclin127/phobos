@@ -90,7 +90,32 @@ struct CommandEntry : public FixStateListObject
 
 
 
-class MemoryController : public Controller
+class MemoryController
+{
+    private:
+        AddressMapping &mapping;
+        Policy &policy;
+    
+        int rankcount;
+        int bankcount;
+        int refresh_interval;
+
+    public:
+        MemoryController(Config &config, AddressMapping &mapping, Policy &policy);
+        virtual ~MemoryController();
+        
+        Channel *channel;
+        
+        FixStateList<RequestEntry, MEM_REQ_NUM> pendingRequests_;
+        FixStateList<TransactionEntry, MEM_TRANS_NUM> pendingTransactions_;
+        FixStateList<CommandEntry, MEM_CMD_NUM> pendingCommands_;
+        
+        bool addTransaction(long clock, RequestEntry *request);
+        bool addCommand(long clock, CommandType type, Coordinates *coordinates, RequestEntry *request);
+        void doScheduling(long clock, Signal &accessCompleted_);
+};
+
+class MemoryControllerHub : public Controller
 {
     private:
         Interconnect *cacheInterconnect_;
@@ -102,23 +127,14 @@ class MemoryController : public Controller
         Policy policy;
     
         Config config;
-        int rankcount;
-        int bankcount;
-        int refresh_interval;
-        Channel *channel;
-
-        FixStateList<RequestEntry, MEM_REQ_NUM> pendingRequests_;
-        FixStateList<TransactionEntry, MEM_TRANS_NUM> pendingTransactions_;
-        FixStateList<CommandEntry, MEM_CMD_NUM> pendingCommands_;
+        int channelcount;
         
-        bool addTransaction(long clock, RequestEntry *request);
-        bool addCommand(long clock, CommandType type, Coordinates *coordinates, RequestEntry *request);
-        void doScheduling(long clock);
+        MemoryController **controller;
         long clock_;
 
     public:
-        MemoryController(W8 coreid, const char *name, MemoryHierarchy *memoryHierarchy, int type);
-        virtual ~MemoryController();
+        MemoryControllerHub(W8 coreid, const char *name, MemoryHierarchy *memoryHierarchy, int type);
+        virtual ~MemoryControllerHub();
         
         void register_interconnect(Interconnect *interconnect, int type);
         
@@ -133,7 +149,7 @@ class MemoryController : public Controller
 
         int get_no_pending_request(W8 coreid);
         bool is_full(bool fromInterconnect = false) const {
-            return pendingRequests_.isFull();
+            return false; // check
         }
 
         void print(ostream& os) const;

@@ -338,6 +338,10 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
 
 MemoryControllerHub::~MemoryControllerHub()
 {
+    for (int channel=0; channel<channelcount; ++channel) {
+        delete controller[channel];
+    }
+    delete [] controller;
 }
 
 void MemoryControllerHub::register_interconnect(Interconnect *interconnect,

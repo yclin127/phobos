@@ -61,6 +61,7 @@ struct RankEnergy {
 };
 
 struct Config {
+    float clock;
     ChannelTiming   channel_timing;
     RankTiming      rank_timing;
     BankTiming      bank_timing;
@@ -90,6 +91,8 @@ struct Config {
         rankcount = -1;
         bankcount = BANK;
         ranksize = SIZE<<20;
+        
+        clock = tCK;
         
         channel_timing.any_to_any = tCMD;
         channel_timing.act_to_any = tCMD;

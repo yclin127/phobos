@@ -126,11 +126,12 @@ class MemoryControllerHub : public Controller
         AddressMapping mapping;
         Policy policy;
     
-        Config config;
+        Config dramconfig;
         int channelcount;
         
         MemoryController **controller;
-        long clock_;
+        long clock_num, clock_den;
+        long clock_rem, clock_mem;
 
     public:
         MemoryControllerHub(W8 coreid, const char *name, MemoryHierarchy *memoryHierarchy, int type);

@@ -70,14 +70,6 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     coordinates.row     = mapping.row.value(address);
     coordinates.column  = mapping.column.value(address);
     
-    cerr << "trans"
-        << "-" << coordinates.channel
-        << "-" << coordinates.rank
-        << "-" << coordinates.bank
-        << "-" << coordinates.row
-        << "-" << coordinates.column
-        << endl;
-    
     RankData &rank = channel->getRankData(coordinates);
     BankData &bank = channel->getBankData(coordinates);
     rank.demandCount += 1;
@@ -284,6 +276,8 @@ void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
     }
 }
 
+extern ConfigurationParser<PTLsimConfig> config;
+
 MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         MemoryHierarchy *memoryHierarchy, int type) :
     Controller(coreid, name, memoryHierarchy)
@@ -300,16 +294,21 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     }
     
     {
-        config = *get_dram_config(type);
-        config.channelcount = channelcount;
-        config.rankcount = ram_size/config.ranksize/config.channelcount;
+        dramconfig = *get_dram_config(type);
+        dramconfig.channelcount = channelcount;
+        dramconfig.rankcount = ram_size/dramconfig.ranksize/dramconfig.channelcount;
     }
      
     {
+        clock_num = 8*1000000000L;
+        clock_den = ((long)(8*dramconfig.clock))*config.core_freq_hz;
+        clock_rem = 0;
+        clock_mem = 0;
+    
         int channel, rank, row;
-        for (channel=0; (1<<channel)<config.channelcount; channel+=1);
-        for (rank=0; (1<<rank)<config.rankcount; rank+=1);
-        for (row=0; (1L<<(row+16))<config.ranksize; row+=1);
+        for (channel=0; (1<<channel)<dramconfig.channelcount; channel+=1);
+        for (rank=0; (1<<rank)<dramconfig.rankcount; rank+=1);
+        for (row=0; (1L<<(row+16))<dramconfig.ranksize; row+=1);
 
         int offset = 6;
         mapping.channel.offset = offset; offset +=
@@ -326,7 +325,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     
     controller = new MemoryController*[channelcount];
     for (int channel=0; channel<channelcount; ++channel) {
-        controller[channel] = new MemoryController(config, mapping, policy);
+        controller[channel] = new MemoryController(dramconfig, mapping, policy);
     }
     
     SET_SIGNAL_CB(name, "_Access_Completed", accessCompleted_,
@@ -506,12 +505,15 @@ bool MemoryControllerHub::wait_interconnect_cb(void *arg)
 
 void MemoryControllerHub::clock()
 {
-    for (int channel=0; channel<channelcount; ++channel) {
-        controller[channel]->channel->cycle(clock_);
-        controller[channel]->doScheduling(clock_, accessCompleted_);
+    clock_rem += clock_num;
+    if (clock_rem >= clock_den) {
+        for (int channel=0; channel<channelcount; ++channel) {
+            controller[channel]->channel->cycle(clock_mem);
+            controller[channel]->doScheduling(clock_mem, accessCompleted_);
+        }
+        clock_mem += 1;
+        clock_rem -= clock_den;
     }
-    
-    clock_ += 1;
 }
 
 void MemoryControllerHub::annul_request(MemoryRequest *request)

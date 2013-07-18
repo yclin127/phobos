@@ -15,8 +15,8 @@ struct ChannelTiming {
 };
 
 struct RankTiming {
-    int act_to_act;
-    int act_to_faw;
+    int act_to_act; /* */
+    int act_to_faw; /* */
     int read_to_read;
     int read_to_write;
     int write_to_read;
@@ -62,12 +62,13 @@ struct RankEnergy {
 
 struct Config {
     float clock;
-    ChannelTiming   channel_timing;
-    RankTiming      rank_timing;
-    BankTiming      bank_timing;
+    ChannelTiming channel_timing;
+    RankTiming rank_timing;
+    BankTiming fast_bank_timing;
+    BankTiming slow_bank_timing;
     
-    ChannelEnergy   channel_energy;
-    RankEnergy      rank_energy;
+    ChannelEnergy channel_energy;
+    RankEnergy rank_energy;
     
     int devicecount;
     int channelcount;
@@ -112,14 +113,27 @@ struct Config {
         rank_timing.powerdown_latency = tCKE;
         rank_timing.powerup_latency = tXP;
         
-        bank_timing.act_to_read = tRCD-tAL;
-        bank_timing.act_to_write = tRCD-tAL;
-        bank_timing.act_to_pre = tRAS;
-        bank_timing.read_to_pre = tAL+tBL+std::max(tRTP, tCCD)-tCCD;
-        bank_timing.write_to_pre = tAL+tCWL+tBL+tWR;
-        bank_timing.pre_to_act = tRP;
-        bank_timing.read_to_data = tAL+tCL;
-        bank_timing.write_to_data = tAL+tCWL;
+        int tRCDf = tRCD/2;
+        int tRASf = tRAS/2;
+        int tRPf = tRP/2;
+        int tWRf = tWR/2;
+        fast_bank_timing.act_to_read = tRCDf-tAL; /** */
+        fast_bank_timing.act_to_write = tRCDf-tAL; /** */
+        fast_bank_timing.act_to_pre = tRASf; /** */
+        fast_bank_timing.read_to_pre = tAL+tBL+std::max(tRTP, tCCD)-tCCD; /* */
+        fast_bank_timing.write_to_pre = tAL+tCWL+tBL+tWRf; /* */
+        fast_bank_timing.pre_to_act = tRPf; /** */
+        fast_bank_timing.read_to_data = tAL+tCL;
+        fast_bank_timing.write_to_data = tAL+tCWL;
+        
+        slow_bank_timing.act_to_read = tRCD-tAL;
+        slow_bank_timing.act_to_write = tRCD-tAL;
+        slow_bank_timing.act_to_pre = tRAS;
+        slow_bank_timing.read_to_pre = tAL+tBL+std::max(tRTP, tCCD)-tCCD;
+        slow_bank_timing.write_to_pre = tAL+tCWL+tBL+tWR;
+        slow_bank_timing.pre_to_act = tRP;
+        slow_bank_timing.read_to_data = tAL+tCL;
+        slow_bank_timing.write_to_data = tAL+tCWL;
     }
 };
 
@@ -128,7 +142,8 @@ struct Config {
 class Bank
 {
 protected:
-    BankTiming *timing;
+    BankTiming *fast_timing;
+    BankTiming *slow_timing;
     
     BankData data;
     

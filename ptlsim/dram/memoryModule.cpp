@@ -338,7 +338,8 @@ void Rank::cycle(long clock)
 
 Bank::Bank(Config *config)
 {
-    timing = &config->bank_timing;
+    fast_timing = &config->fast_bank_timing;
+    slow_timing = &config->slow_bank_timing;
     
     actReadyTime   = 0;
     preReadyTime   = -1;
@@ -392,6 +393,8 @@ long Bank::getReadyTime(CommandType type, Coordinates &coordinates)
 
 long Bank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
 {
+    BankTiming *timing = slow_timing; //(coordinates.row/128)%1 ? slow_timing : fast_timing;
+    
     switch (type) {
         case COMMAND_activate:
             assert(actReadyTime != -1);

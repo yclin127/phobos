@@ -430,7 +430,7 @@ def write_cont_logic(config, m_conf, of, n1, n2):
         cache_cfg = config[n2][cache["type"]]
         name_pfx = cache["name_prefix"]
         base = cache_cfg["base"]
-        if n2 == "memory" and cache["type"] == "dram_cont":
+        if n2 == "memory" and cache["type"] in ("dram_cont", "global_dir_cont"):
             c_type = "0"
         else:
             c_type = cache["type"].upper()

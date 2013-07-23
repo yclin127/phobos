@@ -888,17 +888,67 @@ namespace OOO_CORE_MODEL {
       * virtual addresses are 48 bits, so 48 - 12 (2^12 bytes per page)
       * is 36 bits.
       */
-
+    
+    struct TLBEntry {
+        int counter;
+        void reset() {
+            counter = 0;
+        }
+        void count() {
+            counter += 1;
+        }
+        ostream& print(ostream &os, const W64 tag) const {
+            os << (void*)tag, ": ", counter;
+            return os;
+        }
+    };
+    
     template <int tlbid, int size>
-      struct TranslationLookasideBuffer: public FullyAssociativeTagsNbitOneHot<size, 40> {
+      struct TranslationLookasideBuffer: public AssociativeArray<W64, TLBEntry, size/4, 4, PAGE_SIZE> {
+        typedef AssociativeArray<W64, TLBEntry, size/4, 4, PAGE_SIZE> base_t;
+
+        void reset() {
+          base_t::reset();
+        }
+        
+        bool probe(W64 addr) {
+          TLBEntry* entry = base_t::probe(addr);
+          return (entry != NULL);
+        }
+        
+        void access(W64 addr) {
+          TLBEntry* entry = base_t::probe(addr);
+          entry->count();
+        }
+        
+        bool insert(W64 addr) {
+          W64 tag = base_t::tagof(addr);
+          W64 oldtag = tag;
+          TLBEntry* entry = base_t::select(tag, oldtag);
+          if (oldtag != tag) {
+              cerr << oldtag << ": " << entry->counter << "\n";
+              entry->reset();
+          }
+          return (oldtag != tag);
+        }
+
+        int flush_all() {
+          reset();
+          return size;
+        }
+      };
+        
+
+    /*template <int tlbid, int size>
+      struct TranslationLookasideBuffer2: public FullyAssociativeTagsNbitOneHot<size, 40> {
         typedef FullyAssociativeTagsNbitOneHot<size, 40> base_t;
-        TranslationLookasideBuffer(): base_t() { }
+        TranslationLookasideBuffer2(): base_t() { }
 
         void reset() {
           base_t::reset();
         }
 
-        /* Get the 40-bit TLB tag (36 bit virtual page ID plus 4 bit threadid) */
+        // Get the 40-bit TLB tag (36 bit virtual page ID plus 4 bit threadid)
         static W64 tagof(W64 addr, W64 threadid) {
           return bits(addr, 12, 36) | (threadid << 36);
         }
@@ -938,7 +988,7 @@ namespace OOO_CORE_MODEL {
         int flush_virt(Waddr virtaddr, W64 threadid) {
           return invalidate(tagof(virtaddr, threadid));
         }
-      };
+      };*/
 
     template <int tlbid, int size>
       static inline ostream& operator <<(ostream& os, const TranslationLookasideBuffer<tlbid, size>& tlb) {
@@ -947,6 +997,7 @@ namespace OOO_CORE_MODEL {
 
     typedef TranslationLookasideBuffer<0, DTLB_SIZE> DTLB;
     typedef TranslationLookasideBuffer<1, ITLB_SIZE> ITLB;
+    typedef TranslationLookasideBuffer<2, STLB_SIZE> STLB; /* yclin */
 
     /**
      * @brief represent a OOO  thread in SMT core.
@@ -995,8 +1046,10 @@ namespace OOO_CORE_MODEL {
         RegisterRenameTable specrrt;
         RegisterRenameTable commitrrt;
 
-        DTLB dtlb;
-        ITLB itlb;
+        /* yclin */
+        // DTLB dtlb;
+        // ITLB itlb;
+        /* yclin */
         void setupTLB();
         W64 itlb_miss_init_cycle;
         bool in_tlb_walk;
@@ -1105,13 +1158,15 @@ namespace OOO_CORE_MODEL {
         /* This is only used for stats collection. By default if core is
          * collecting stats that is common across threads then its collected
          * into Stats that Thread-0 is using.
-		 */
+         */
         ThreadContext& getthread() { return *threads[0]; }
 
         PTLsimStats *stats_;
 
         int threadcount;
         ThreadContext** threads;
+        
+        static STLB stlb;
 
         ListOfStateLists rob_states;
         ListOfStateLists lsq_states;

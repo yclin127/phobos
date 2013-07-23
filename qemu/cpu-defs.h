@@ -73,6 +73,7 @@ typedef uint64_t target_ulong;
 #define TB_JMP_PAGE_MASK (TB_JMP_CACHE_SIZE - TB_JMP_PAGE_SIZE)
 
 #if !defined(CONFIG_USER_ONLY)
+/*
 #define CPU_TLB_BITS 8
 #define CPU_TLB_SIZE (1 << CPU_TLB_BITS)
 
@@ -81,6 +82,10 @@ typedef uint64_t target_ulong;
 #else
 #define CPU_TLB_ENTRY_BITS 5
 #endif
+*/
+#define CPU_TLB_BITS 10
+#define CPU_TLB_SIZE (1 << CPU_TLB_BITS)
+#define CPU_TLB_ENTRY_BITS 6
 
 typedef struct CPUTLBEntry {
     /* bit TARGET_LONG_BITS to TARGET_PAGE_BITS : virtual address
@@ -95,11 +100,12 @@ typedef struct CPUTLBEntry {
     /* Addend to virtual address to get host address.  IO accesses
        use the corresponding iotlb value.  */
     unsigned long addend;
+    unsigned long counter;
     /* padding to get a power of two size */
     uint8_t dummy[(1 << CPU_TLB_ENTRY_BITS) - 
                   (sizeof(target_ulong) * 3 + 
                    ((-sizeof(target_ulong) * 3) & (sizeof(unsigned long) - 1)) +
-                   sizeof(unsigned long))];
+                   sizeof(unsigned long) * 2)];
 } CPUTLBEntry;
 
 extern int CPUTLBEntry_wrong_size[sizeof(CPUTLBEntry) == (1 << CPU_TLB_ENTRY_BITS) ? 1 : -1];

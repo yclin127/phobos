@@ -419,8 +419,6 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
     if(controller[channel]->pendingRequests_.isFull()) {
         memoryHierarchy_->set_controller_full(this, true);
     }
-    
-    message->request->set_cached(false);
 
     queueEntry->request = message->request;
     queueEntry->source = (Controller*)message->origin;
@@ -428,6 +426,12 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
     queueEntry->request->incRefCounter();
     ADD_HISTORY_ADD(queueEntry->request);
 
+    /* yclin */
+    if(message->request->get_coreSignal2()) {
+        message->request->get_coreSignal2()->emit((void*)message->request);
+    }
+    /* yclin */
+    
     return true;
 }
 

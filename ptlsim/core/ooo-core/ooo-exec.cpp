@@ -1758,7 +1758,7 @@ int ReorderBufferEntry::issueload(LoadStoreQueueEntry& state, Waddr& origaddr, W
 
     request->init(core.get_coreid(), threadid, state.physaddr << 3, idx, sim_cycle,
             false, uop.rip.rip, uop.uuid, Memory::MEMORY_OP_READ);
-    request->set_coreSignal(&core.dcache_signal);
+    request->set_coreSignal(&core.dcache_signal, &core.mem_signal, state.virtaddr);
 
     bool L1hit = core.memoryHierarchy->access_cache(request);
 
@@ -1896,7 +1896,7 @@ bool ReorderBufferEntry::probetlb(LoadStoreQueueEntry& state, Waddr& origaddr, W
     /* First check if its a TLB hit or miss */
     /* yclin */
     // if unlikely (exception != 0 || !thread.dtlb.probe(origaddr, threadid)) {
-    if unlikely (exception != 0 || !getcore().stlb.probe(origaddr)) {
+    if unlikely (exception != 0 || !getcore().stlb.probe(origaddr, __FUNCTION__, thread.coreid)) {
     /* yclin */
 
         if(logable(6)) {
@@ -2043,7 +2043,7 @@ rob_cont:
 
         /* yclin */
         // thread.dtlb.insert(origvirt, threadid);
-        core.stlb.insert(origvirt);
+        core.stlb.insert(origvirt, __FUNCTION__, thread.coreid);
         /* yclin */
         thread.in_tlb_walk = 0;
 
@@ -2071,11 +2071,10 @@ rob_cont:
 
     request->init(core.get_coreid(), threadid, pteaddr, idx, sim_cycle,
             false, uop.rip.rip, uop.uuid, Memory::MEMORY_OP_READ);
-    request->set_coreSignal(&core.dcache_signal);
+    request->set_coreSignal(&core.dcache_signal, &core.mem_signal, -1); /* yclin */
+    request->set_mapped(false); /* yclin */
 
     lsq->physaddr = pteaddr >> 3;
-    
-    request->set_page_table(true); /* yclin */
 
     bool L1_hit = core.memoryHierarchy->access_cache(request);
 
@@ -2239,12 +2238,6 @@ bool OooCore::dcache_wakeup(void *arg) {
             rob.lsq->physaddr == (physaddr >> 3) &&
             rob.current_state_list == &thread->rob_cache_miss_list){
         if(logable(6)) ptl_logfile << " rob ", rob, endl;
-        
-        /* yclin */
-        if (!request->is_cached() && !request->is_page_table()) {
-            stlb.access(rob.lsq->virtaddr);
-        }
-        /* yclin */
 
         /*
          * Because of QEMU's in-order execution and Simulator's
@@ -2385,6 +2378,19 @@ void ReorderBufferEntry::loadwakeup() {
 
     }
 }
+
+/* yclin */
+bool OooCore::mem_wakeup(void *arg) {
+
+    Memory::MemoryRequest* request = (Memory::MemoryRequest*)arg;
+    
+    if (request->is_mapped()) {
+        stlb.access(request->get_virtual_address(), __FUNCTION__, get_coreid());
+    }
+    
+    return true;
+}
+/* yclin */
 
 /**
  * @brief Wakeup Memory-fence Entry

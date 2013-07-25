@@ -149,7 +149,6 @@ void ThreadContext::reset() {
     stall_frontend = false;
     waiting_for_icache_fill = false;
     waiting_for_icache_fill_physaddr = 0;
-    waiting_for_icache_fill_virtaddr = 0; /* yclin */
     fetch_uuid = 0;
     current_icache_block = 0;
     loads_in_flight = 0;
@@ -263,11 +262,16 @@ OooCore::OooCore(BaseMachine& machine_, W8 num_threads,
                 &OooCore::dcache_wakeup));
 
     sig_name.reset();
-
     sig_name << core_name << "-icache-wakeup";
     icache_signal.set_name(sig_name.buf);
     icache_signal.connect(signal_mem_ptr(*this,
                 &OooCore::icache_wakeup));
+
+    sig_name.reset();
+    sig_name << core_name << "-mem-wakeup";
+    mem_signal.set_name(sig_name.buf);
+    mem_signal.connect(signal_mem_ptr(*this,
+                &OooCore::mem_wakeup));
 
 	sig_name.reset();
 	sig_name << core_name << "-run-cycle";

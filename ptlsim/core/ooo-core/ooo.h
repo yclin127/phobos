@@ -914,30 +914,33 @@ namespace OOO_CORE_MODEL {
           base_t::reset();
         }
         
-        bool probe(W64 addr) {
+        bool probe(W64 addr, const char* label, int thread) {
           TLBEntry* entry = base_t::probe(addr);
           return (entry != NULL);
         }
         
-        void access(W64 addr) {
+        void access(W64 addr, const char* label, int thread) {
           TLBEntry* entry = base_t::probe(addr);
           if (entry != NULL) {
             entry->counter += 1;
-            if (entry->counter >= threshold) {
+            if (entry->counter == threshold) {
               /* migration ! */
+              //printf("migrate  %012llx (%d) th_%d %s\n", base_t::tagof(addr)&(((1UL<<36)-1)<<12), entry->counter, thread, label);
             }
           } else {
             /* may need to check this out, not happend very often */
+            //printf("miss %012llx (*) th_%d %s\n", base_t::tagof(addr)&(((1UL<<36)-1)<<12), thread, label);
           }
         }
         
-        bool insert(W64 addr) {
+        bool insert(W64 addr, const char* label, int thread) {
           W64 tag = base_t::tagof(addr);
           W64 oldtag = tag;
           TLBEntry* entry = base_t::select(tag, oldtag);
           if (oldtag != tag) {
             if (oldtag != InvalidTag<W64>::INVALID) {
-              cerr << (void*)oldtag << ": " << entry->counter << "\n";
+              /* eviction */
+              //printf("evict %012llx (%d) th_%d %s\n", oldtag&(((1UL<<36)-1)<<12), entry->counter, thread, label);
             }
             entry->counter = 0;
           }
@@ -1073,7 +1076,6 @@ namespace OOO_CORE_MODEL {
         bool stall_frontend;
         bool waiting_for_icache_fill;
         Waddr waiting_for_icache_fill_physaddr;
-        W64 waiting_for_icache_fill_virtaddr; /* yclin */
         byte itlb_walk_level;
         bool probeitlb(Waddr fetchrip);
         void itlbwalk();
@@ -1341,10 +1343,12 @@ namespace OOO_CORE_MODEL {
 		/* Cache Signals and Callbacks */
         Signal dcache_signal;
         Signal icache_signal;
+        Signal mem_signal; /* yclin */
 		Signal run_cycle;
 
         bool dcache_wakeup(void *arg);
         bool icache_wakeup(void *arg);
+        bool mem_wakeup(void *arg); /* yclin */
 
 		/* Debugging */
         void dump_state(ostream& os);

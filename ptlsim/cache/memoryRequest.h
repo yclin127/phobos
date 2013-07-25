@@ -67,10 +67,8 @@ class MemoryRequest: public selfqueuelink
 			isData_ = 0;
 			history = new stringbuf();
             coreSignal_ = NULL;
-            /* yclin */
-            isCached_ = true;
-            isPageTable_ = false;
-            /* yclin */
+            coreSignal2_ = NULL; /* yclin */
+            isMapped_ = true; /* yclin */
 		}
 
 		void incRefCounter(){
@@ -142,15 +140,26 @@ class MemoryRequest: public selfqueuelink
             return false;
         }
 
-        void set_coreSignal(Signal* signal)
+        void set_coreSignal(Signal* signal, Signal* signal2, W64 addr)
         {
             coreSignal_ = signal;
+            coreSignal2_ = signal2; /* yclin */
+            virtualAddress_ = addr; /* yclin */
         }
+        
+        W64 get_virtual_address() { return virtualAddress_; } /* yclin */
 
         Signal* get_coreSignal()
         {
             return coreSignal_;
         }
+
+        /* yclin */
+        Signal* get_coreSignal2()
+        {
+            return coreSignal2_;
+        }
+        /* yclin */
 
 		ostream& print(ostream& os) const
 		{
@@ -172,24 +181,19 @@ class MemoryRequest: public selfqueuelink
 		}
 		
         /* yclin */
-        bool is_cached() {
-            return isCached_;
+        bool is_mapped() {
+            return isMapped_;
         }
-        void set_cached(bool value) {
-            isCached_ = value;
-        }
-        bool is_page_table() {
-            return isPageTable_;
-        }
-        void set_page_table(bool value) {
-            isPageTable_ = value;
+        void set_mapped(bool value) {
+            isMapped_ = value;
         }
         /* yclin */
 
 	private:
 		W8 coreId_;
 		W8 threadId_;
-		W64 physicalAddress_;
+        W64 physicalAddress_;
+        W64 virtualAddress_; /* yclin */
 		bool isData_;
 		int robId_;
 		W64 cycles_;
@@ -199,8 +203,8 @@ class MemoryRequest: public selfqueuelink
 		OP_TYPE opType_;
 		stringbuf *history;
         Signal *coreSignal_;
-        bool isCached_; /* yclin */
-        bool isPageTable_; /* yclin */
+        Signal *coreSignal2_; /* yclin */
+        bool isMapped_; /* yclin */
 
 };
 

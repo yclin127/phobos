@@ -54,12 +54,6 @@ bool OooCore::icache_wakeup(void *arg) {
             if (logable(6)) ptl_logfile << "[vcpu ", thread->ctx.cpu_index, "] i-cache wakeup of physaddr ", (void*)(Waddr)physaddr, endl;
             thread->waiting_for_icache_fill = 0;
             thread->waiting_for_icache_fill_physaddr = 0;
-            /* yclin */
-            if (!request->is_cached() && !request->is_page_table()) {
-                stlb.access(thread->waiting_for_icache_fill_virtaddr);
-            }
-            thread->waiting_for_icache_fill_virtaddr = 0;
-            /* yclin */
             if unlikely (thread->itlb_walk_level > 0) {
                 thread->itlb_walk_level--;
                 thread->itlbwalk();
@@ -88,7 +82,7 @@ bool ThreadContext::probeitlb(Waddr icache_addr) {
 
     /* yclin */
     // if(!i(icache_addr, threadid)) {
-    if(!getcore().stlb.probe(icache_addr)) {
+    if(!getcore().stlb.probe(icache_addr, __FUNCTION__, coreid)) {
     /* yclin */
 
         if(logable(6)) {
@@ -124,7 +118,7 @@ itlb_walk_finish:
         itlb_walk_level = 0;
         /* yclin */
         // itlb.insert(fetchrip, threadid);
-        getcore().stlb.insert(fetchrip);
+        getcore().stlb.insert(fetchrip, __FUNCTION__, coreid);
         /* yclin */
         int delay = min(sim_cycle - itlb_miss_init_cycle, (W64)1000);
         thread_stats.dcache.itlb_latency[delay]++;
@@ -150,12 +144,10 @@ itlb_walk_finish:
 
     request->init(core.get_coreid(), threadid, pteaddr, 0, sim_cycle,
             true, 0, 0, Memory::MEMORY_OP_READ);
-    request->set_coreSignal(&core.icache_signal);
-
-    request->set_page_table(true); /* yclin */
+    request->set_coreSignal(&core.icache_signal, &core.mem_signal, -1); /* yclin */
+    request->set_mapped(false); /* yclin */
     
     waiting_for_icache_fill_physaddr = floor(pteaddr, ICACHE_FETCH_GRANULARITY);
-    waiting_for_icache_fill_virtaddr = -1; /* page table always stored in physical memory, yclin */
     waiting_for_icache_fill = 1;
 
     bool buf_hit = core.memoryHierarchy->access_cache(request);
@@ -616,7 +608,7 @@ bool ThreadContext::fetch() {
 
             request->init(core.get_coreid(), threadid, physaddr, 0, sim_cycle,
                     true, 0, 0, Memory::MEMORY_OP_READ);
-            request->set_coreSignal(&core.icache_signal);
+            request->set_coreSignal(&core.icache_signal, &core.mem_signal, floor(fetchrip, ICACHE_FETCH_GRANULARITY)); /* yclin */
 
             hit = core.memoryHierarchy->access_cache(request);
 
@@ -624,7 +616,6 @@ bool ThreadContext::fetch() {
             if unlikely (!hit) {
                 waiting_for_icache_fill = 1;
                 waiting_for_icache_fill_physaddr = req_icache_block;
-                waiting_for_icache_fill_virtaddr = floor(fetchrip, ICACHE_FETCH_GRANULARITY); /* yclin */
                 thread_stats.fetch.stop.icache_miss++;
                 break;
             }
@@ -2196,7 +2187,7 @@ int ReorderBufferEntry::commit() {
             request->init(core.get_coreid(), threadid, lsq->physaddr << 3, 0,
                     sim_cycle, false, uop.rip.rip, uop.uuid,
                     Memory::MEMORY_OP_WRITE);
-            request->set_coreSignal(&core.dcache_signal);
+            request->set_coreSignal(&core.dcache_signal, &core.mem_signal, lsq->virtaddr);
 
             assert(core.memoryHierarchy->access_cache(request));
             assert(lsq->virtaddr > 0xfff);

@@ -62,6 +62,10 @@ void MemoryRequest::init(W8 coreId,
 	refCounter_ = 0; // or maybe 1
 	opType_ = opType;
 	isData_ = !isInstruction;
+    /* yclin */
+    isCached_ = true; 
+    isPageTable_ = false;
+    /* yclin */
 
 	if(history) delete history;
 	history = new stringbuf();
@@ -81,6 +85,10 @@ void MemoryRequest::init(MemoryRequest *request)
 	refCounter_ = 0; // or maybe 1
 	opType_ = request->opType_;
 	isData_ = request->isData_;
+    /* yclin */
+    isCached_ = request->isCached_;
+    isPageTable_ = request->isPageTable_;
+    /* yclin */
 
 	if(history) delete history;
 	history = new stringbuf();

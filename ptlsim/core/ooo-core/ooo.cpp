@@ -149,6 +149,7 @@ void ThreadContext::reset() {
     stall_frontend = false;
     waiting_for_icache_fill = false;
     waiting_for_icache_fill_physaddr = 0;
+    waiting_for_icache_fill_virtaddr = 0; /* yclin */
     fetch_uuid = 0;
     current_icache_block = 0;
     loads_in_flight = 0;

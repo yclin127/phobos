@@ -419,6 +419,8 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
     if(controller[channel]->pendingRequests_.isFull()) {
         memoryHierarchy_->set_controller_full(this, true);
     }
+    
+    message->request->set_cached(false);
 
     queueEntry->request = message->request;
     queueEntry->source = (Controller*)message->origin;

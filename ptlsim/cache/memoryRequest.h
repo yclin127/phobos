@@ -67,6 +67,10 @@ class MemoryRequest: public selfqueuelink
 			isData_ = 0;
 			history = new stringbuf();
             coreSignal_ = NULL;
+            /* yclin */
+            isCached_ = true;
+            isPageTable_ = false;
+            /* yclin */
 		}
 
 		void incRefCounter(){
@@ -166,6 +170,21 @@ class MemoryRequest: public selfqueuelink
             }
 			return os;
 		}
+		
+        /* yclin */
+        bool is_cached() {
+            return isCached_;
+        }
+        void set_cached(bool value) {
+            isCached_ = value;
+        }
+        bool is_page_table() {
+            return isPageTable_;
+        }
+        void set_page_table(bool value) {
+            isPageTable_ = value;
+        }
+        /* yclin */
 
 	private:
 		W8 coreId_;
@@ -180,6 +199,8 @@ class MemoryRequest: public selfqueuelink
 		OP_TYPE opType_;
 		stringbuf *history;
         Signal *coreSignal_;
+        bool isCached_; /* yclin */
+        bool isPageTable_; /* yclin */
 
 };
 

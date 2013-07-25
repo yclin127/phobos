@@ -894,9 +894,6 @@ namespace OOO_CORE_MODEL {
         void reset() {
             counter = 0;
         }
-        void count() {
-            counter += 1;
-        }
         ostream& print(ostream &os, const W64 tag) const {
             os << (void*)tag, ": ", counter;
             return os;
@@ -906,6 +903,12 @@ namespace OOO_CORE_MODEL {
     template <int tlbid, int size>
       struct TranslationLookasideBuffer: public AssociativeArray<W64, TLBEntry, size/4, 4, PAGE_SIZE> {
         typedef AssociativeArray<W64, TLBEntry, size/4, 4, PAGE_SIZE> base_t;
+        
+        int threshold;
+        
+        TranslationLookasideBuffer() {
+            threshold = 8;
+        }
 
         void reset() {
           base_t::reset();
@@ -918,7 +921,14 @@ namespace OOO_CORE_MODEL {
         
         void access(W64 addr) {
           TLBEntry* entry = base_t::probe(addr);
-          entry->count();
+          if (entry != NULL) {
+            entry->counter += 1;
+            if (entry->counter >= threshold) {
+              /* migration ! */
+            }
+          } else {
+            /* may need to check this out, not happend very often */
+          }
         }
         
         bool insert(W64 addr) {
@@ -926,8 +936,10 @@ namespace OOO_CORE_MODEL {
           W64 oldtag = tag;
           TLBEntry* entry = base_t::select(tag, oldtag);
           if (oldtag != tag) {
-              cerr << oldtag << ": " << entry->counter << "\n";
-              entry->reset();
+            if (oldtag != InvalidTag<W64>::INVALID) {
+              cerr << (void*)oldtag << ": " << entry->counter << "\n";
+            }
+            entry->counter = 0;
           }
           return (oldtag != tag);
         }
@@ -1061,6 +1073,7 @@ namespace OOO_CORE_MODEL {
         bool stall_frontend;
         bool waiting_for_icache_fill;
         Waddr waiting_for_icache_fill_physaddr;
+        W64 waiting_for_icache_fill_virtaddr; /* yclin */
         byte itlb_walk_level;
         bool probeitlb(Waddr fetchrip);
         void itlbwalk();

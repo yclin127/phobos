@@ -54,6 +54,12 @@ bool OooCore::icache_wakeup(void *arg) {
             if (logable(6)) ptl_logfile << "[vcpu ", thread->ctx.cpu_index, "] i-cache wakeup of physaddr ", (void*)(Waddr)physaddr, endl;
             thread->waiting_for_icache_fill = 0;
             thread->waiting_for_icache_fill_physaddr = 0;
+            /* yclin */
+            if (!request->is_cached() && !request->is_page_table()) {
+                stlb.access(thread->waiting_for_icache_fill_virtaddr);
+            }
+            thread->waiting_for_icache_fill_virtaddr = 0;
+            /* yclin */
             if unlikely (thread->itlb_walk_level > 0) {
                 thread->itlb_walk_level--;
                 thread->itlbwalk();
@@ -146,7 +152,10 @@ itlb_walk_finish:
             true, 0, 0, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&core.icache_signal);
 
+    request->set_page_table(true); /* yclin */
+    
     waiting_for_icache_fill_physaddr = floor(pteaddr, ICACHE_FETCH_GRANULARITY);
+    waiting_for_icache_fill_virtaddr = -1; /* page table always stored in physical memory, yclin */
     waiting_for_icache_fill = 1;
 
     bool buf_hit = core.memoryHierarchy->access_cache(request);
@@ -615,6 +624,7 @@ bool ThreadContext::fetch() {
             if unlikely (!hit) {
                 waiting_for_icache_fill = 1;
                 waiting_for_icache_fill_physaddr = req_icache_block;
+                waiting_for_icache_fill_virtaddr = floor(fetchrip, ICACHE_FETCH_GRANULARITY); /* yclin */
                 thread_stats.fetch.stop.icache_miss++;
                 break;
             }

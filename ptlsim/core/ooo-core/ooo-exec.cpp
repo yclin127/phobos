@@ -2074,6 +2074,8 @@ rob_cont:
     request->set_coreSignal(&core.dcache_signal);
 
     lsq->physaddr = pteaddr >> 3;
+    
+    request->set_page_table(true); /* yclin */
 
     bool L1_hit = core.memoryHierarchy->access_cache(request);
 
@@ -2237,6 +2239,12 @@ bool OooCore::dcache_wakeup(void *arg) {
             rob.lsq->physaddr == (physaddr >> 3) &&
             rob.current_state_list == &thread->rob_cache_miss_list){
         if(logable(6)) ptl_logfile << " rob ", rob, endl;
+        
+        /* yclin */
+        if (!request->is_cached() && !request->is_page_table()) {
+            stlb.access(rob.lsq->virtaddr);
+        }
+        /* yclin */
 
         /*
          * Because of QEMU's in-order execution and Simulator's

@@ -38,6 +38,10 @@ MemoryController::MemoryController(Config &config, AddressMapping &mapping, Poli
             BankData &bank = channel->getBankData(coordinates);
             bank.demandCount = 0;
             bank.rowBuffer = -1;
+            bank.mapping = new int[config.rowcount];
+            for (int i=0; i<config.rowcount; ++i) {
+              bank.mapping[i] = i;
+            }
         }
     }
 }
@@ -284,12 +288,16 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
 {
     memoryHierarchy_->add_mem_controller(this);
     
+    int asym_mat_group, asym_mat_ratio;
+    
     {
         BaseMachine &machine = memoryHierarchy_->get_machine();
 #define option(var,opt,val) machine.get_option(name, opt, var) || (var = val)
-        option(channelcount, "channel",  1);
+        option(channelcount, "channel", 1);
         option(policy.max_row_hits, "max_row_hits", 4);
         option(policy.max_row_idle, "max_row_idle", 0);
+        option(asym_mat_group, "asym_mat_group", 1);
+        option(asym_mat_ratio, "asym_mat_ratio", 0);
 #undef option
     }
     
@@ -297,6 +305,8 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         dramconfig = *get_dram_config(type);
         dramconfig.channelcount = channelcount;
         dramconfig.rankcount = ram_size/dramconfig.ranksize/dramconfig.channelcount;
+        dramconfig.asym_mat_group = asym_mat_group;
+        dramconfig.asym_mat_ratio = asym_mat_ratio;
     }
      
     {
@@ -308,7 +318,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         int channel, rank, row;
         for (channel=0; (1<<channel)<dramconfig.channelcount; channel+=1);
         for (rank=0; (1<<rank)<dramconfig.rankcount; rank+=1);
-        for (row=0; (1L<<(row+16))<dramconfig.ranksize; row+=1);
+        for (row=0; (1L<<(row+13+3))<dramconfig.ranksize; row+=1);
 
         int offset = 6;
         mapping.channel.offset = offset; offset +=

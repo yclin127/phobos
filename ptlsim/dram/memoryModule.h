@@ -2,6 +2,7 @@
 #define __MEMORY_MODUlE_H__
 
 #include "memoryCommon.h"
+#include <cassert>
 
 namespace DRAM {
 
@@ -61,20 +62,27 @@ struct RankEnergy {
 };
 
 struct Config {
-    float clock;
-    ChannelTiming channel_timing;
-    RankTiming rank_timing;
-    BankTiming fast_bank_timing;
-    BankTiming slow_bank_timing;
-    
-    ChannelEnergy channel_energy;
-    RankEnergy rank_energy;
+    long ranksize;
     
     int devicecount;
     int channelcount;
     int rankcount;
     int bankcount;
-    long ranksize;
+    int rowcount;
+    int columncount;
+    
+    int asym_mat_group;
+    int asym_mat_ratio;
+    
+    float clock;
+    
+    ChannelTiming channel_timing;
+    RankTiming    rank_timing;
+    BankTiming    fast_bank_timing;
+    BankTiming    slow_bank_timing;
+    
+    ChannelEnergy channel_energy;
+    RankEnergy    rank_energy;
     
     Config() {}
     Config(
@@ -87,11 +95,18 @@ struct Config {
       int tRFC, int tREFI,
       int tCKE, int tXP
     ) {
+        ranksize = SIZE<<20;
+        
+        assert(ranksize%BANK == 0);
         devicecount = DEVICE;
         channelcount = -1;
         rankcount = -1;
         bankcount = BANK;
-        ranksize = SIZE<<20;
+        rowcount = ((ranksize/BANK)>>13);
+        columncount = 1<<13;
+        
+        asym_mat_group = -1;
+        asym_mat_ratio = -1;
         
         clock = tCK;
         
@@ -146,6 +161,9 @@ protected:
     BankTiming *slow_timing;
     
     BankData data;
+    
+    int asym_mat_group;
+    int asym_mat_ratio;
     
     long actReadyTime;
     long preReadyTime;

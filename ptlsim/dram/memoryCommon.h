@@ -43,6 +43,7 @@ struct BankData {
     int supplyCount;
     int rowBuffer;
     int hitCount;
+    int *mapping;
 };
 
 struct RankData {

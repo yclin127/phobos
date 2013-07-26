@@ -182,6 +182,8 @@ namespace Memory {
 
     // interface to memory hierarchy
 	bool access_cache(MemoryRequest *request);
+    
+    void swap_page(W64 addr1, W64 addr2); /* yclin */
 
     // New Core wakeup function that uses Signal of MemoryRequest
     // if Signal is not setup, it uses old wrapper functions

@@ -13,6 +13,7 @@ enum CommandType {
     COMMAND_read_precharge,
     COMMAND_write_precharge,
     COMMAND_refresh,
+    COMMAND_migrate,
     COMMAND_powerup,
     COMMAND_powerdown,
 };

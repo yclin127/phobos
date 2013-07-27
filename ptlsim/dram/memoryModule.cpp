@@ -52,6 +52,7 @@ long Channel::getReadyTime(CommandType type, Coordinates &coordinates)
         case COMMAND_activate:
         case COMMAND_precharge:
         case COMMAND_refresh:
+        case COMMAND_migrate:
             clock = ranks[coordinates.rank]->getReadyTime(type, coordinates);
             clock = std::max(clock, anyReadyTime);
             
@@ -95,12 +96,13 @@ long Channel::getFinishTime(long clock, CommandType type, Coordinates &coordinat
         case COMMAND_activate:
         case COMMAND_precharge:
         case COMMAND_refresh:
+        case COMMAND_migrate:
             anyReadyTime = clock + timing->any_to_any;
             if (type == COMMAND_activate) {
                 anyReadyTime = std::max(anyReadyTime, clock + timing->act_to_any);
             }
             
-            commandBusEnergy += energy->cmd;
+            commandBusEnergy += energy->command;
             if (type == COMMAND_activate) {
                 addressBusEnergy += energy->row;
             }
@@ -112,8 +114,8 @@ long Channel::getFinishTime(long clock, CommandType type, Coordinates &coordinat
             readReadyTime  = clock + timing->read_to_read;
             writeReadyTime = clock + timing->read_to_write;
             
-            commandBusEnergy += energy->cmd;
-            addressBusEnergy += energy->col;
+            commandBusEnergy += energy->command;
+            addressBusEnergy += energy->column;
             dataBusEnergy    += energy->data;
             
             rankSelect = coordinates.rank;
@@ -126,8 +128,8 @@ long Channel::getFinishTime(long clock, CommandType type, Coordinates &coordinat
             readReadyTime  = clock + timing->write_to_read;
             writeReadyTime = clock + timing->write_to_write;
             
-            commandBusEnergy += energy->cmd;
-            addressBusEnergy += energy->col;
+            commandBusEnergy += energy->command;
+            addressBusEnergy += energy->column;
             dataBusEnergy    += energy->data;
             
             rankSelect = coordinates.rank;
@@ -238,6 +240,11 @@ long Rank::getReadyTime(CommandType type, Coordinates &coordinates)
             
             return clock;
             
+        case COMMAND_migrate:
+            clock = banks[coordinates.bank]->getReadyTime(type, coordinates);
+            
+            return clock;
+            
         case COMMAND_powerup:
             return powerupReadyTime;
             
@@ -261,11 +268,13 @@ long Rank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             fawReadyTime[2] = fawReadyTime[3];
             fawReadyTime[3] = clock + timing->act_to_faw;
             
-            actEnergy += energy->act;
+            actEnergy += energy->activate;
             
             return banks[coordinates.bank]->getFinishTime(clock, type, coordinates);
             
         case COMMAND_precharge:
+            actEnergy += energy->precharge;
+            
             return banks[coordinates.bank]->getFinishTime(clock, type, coordinates);
             
         case COMMAND_read:
@@ -297,6 +306,18 @@ long Rank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             refreshEnergy += energy->refresh;
             
             return clock;
+            
+        case COMMAND_migrate:
+            actReadyTime = clock + timing->act_to_act; /** */
+            
+            fawReadyTime[0] = fawReadyTime[1];
+            fawReadyTime[1] = fawReadyTime[2];
+            fawReadyTime[2] = fawReadyTime[3];
+            fawReadyTime[3] = clock + timing->act_to_faw; /** */
+            
+            actEnergy += energy->migrate;
+            
+            return banks[coordinates.bank]->getFinishTime(clock, type, coordinates);
             
         case COMMAND_powerup:
             actReadyTime = clock + timing->powerup_latency;
@@ -330,10 +351,11 @@ long Rank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
 
 void Rank::cycle(long clock)
 {
-    if (powerupReadyTime == -1)
+    if (powerupReadyTime == -1) {
         backgroundEnergy += energy->powerup_per_cycle;
-    else
+    } else {
         backgroundEnergy += energy->powerdown_per_cycle;
+    }
 }
 
 Bank::Bank(Config *config)
@@ -346,6 +368,7 @@ Bank::Bank(Config *config)
     
     actReadyTime   = 0;
     preReadyTime   = -1;
+    migReadyTime   = -1;
     readReadyTime  = -1;
     writeReadyTime = -1;
 }
@@ -384,6 +407,11 @@ long Bank::getReadyTime(CommandType type, Coordinates &coordinates)
             
             return writeReadyTime;
             
+        case COMMAND_migrate:
+            assert(migReadyTime != -1);
+            
+            return migReadyTime;
+            
         //case COMMAND_refresh:
         //case COMMAND_powerup:
         //case COMMAND_powerdonw:
@@ -398,10 +426,11 @@ long Bank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
 {
     BankTiming *timing;
     
-    if ((coordinates.row%asym_mat_group)*asym_mat_ratio < asym_mat_group && asym_mat_ratio > 0)
+    if ((coordinates.row%asym_mat_group)*asym_mat_ratio < asym_mat_group && asym_mat_ratio > 0) {
         timing = fast_timing;
-    else
+    } else {
         timing = slow_timing;
+    }
     
     switch (type) {
         case COMMAND_activate:
@@ -410,6 +439,7 @@ long Bank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             
             actReadyTime   = -1;
             preReadyTime   = clock + timing->act_to_pre;
+            migReadyTime   = clock + timing->act_to_mig;
             readReadyTime  = clock + timing->act_to_read;
             writeReadyTime = clock + timing->act_to_write;
             
@@ -421,6 +451,7 @@ long Bank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             
             actReadyTime   = clock + timing->pre_to_act;
             preReadyTime   = -1;
+            migReadyTime   = -1;
             readReadyTime  = -1;
             writeReadyTime = -1;
             
@@ -434,16 +465,18 @@ long Bank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             if (type == COMMAND_read) {
                 actReadyTime   = -1;
                 preReadyTime   = std::max(preReadyTime, clock + timing->read_to_pre);
+                migReadyTime   = std::max(migReadyTime, clock + timing->read_to_mig);
                 // see rank for readReadyTime
                 // see rank for writeReadyTime
             } else {
                 actReadyTime   = clock + timing->read_to_pre + timing->pre_to_act;
                 preReadyTime   = -1;
+                migReadyTime   = -1;
                 readReadyTime  = -1;
                 writeReadyTime = -1;
             }
             
-            return clock + timing->read_to_data;
+            return clock + timing->read_latency;
             
         case COMMAND_write:
         case COMMAND_write_precharge:
@@ -453,16 +486,30 @@ long Bank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             if (type == COMMAND_write) {
                 actReadyTime   = -1;
                 preReadyTime   = std::max(preReadyTime, clock + timing->write_to_pre);
+                migReadyTime   = std::max(migReadyTime, clock + timing->write_to_mig);
                 // see rank for readReadyTime
                 // see rank for writeReadyTime
             } else {
                 actReadyTime   = clock + timing->write_to_pre + timing->pre_to_act;
                 preReadyTime   = -1;
+                migReadyTime   = -1;
                 readReadyTime  = -1;
                 writeReadyTime = -1;
             }
             
-            return clock + timing->write_to_data;
+            return clock + timing->write_latency;
+            
+        case COMMAND_migrate:
+            assert(migReadyTime != -1);
+            assert(clock >= migReadyTime);
+            
+            actReadyTime   = -1;
+            preReadyTime   = clock + timing->mig_latency + timing->act_to_pre;
+            migReadyTime   = clock + timing->mig_latency + timing->act_to_mig;
+            readReadyTime  = clock + timing->mig_latency + timing->act_to_read;
+            writeReadyTime = clock + timing->mig_latency + timing->act_to_write;
+            
+            return clock;
         
         //case COMMAND_refresh:
         //case COMMAND_powerup:

@@ -76,9 +76,12 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     
     RankData &rank = channel->getRankData(coordinates);
     BankData &bank = channel->getBankData(coordinates);
+    
+    /* Address mapping for row migrations. */
+    coordinates.row = bank.mapping[coordinates.row];
+    
     rank.demandCount += 1;
     bank.demandCount += 1;
-    
     if (coordinates.row == bank.rowBuffer) {
         bank.supplyCount += 1;
     }
@@ -209,9 +212,7 @@ void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
             // Read / Write
             assert(bank.rowBuffer == coordinates->row);
             assert(bank.supplyCount > 0);
-            CommandType type = transaction->request->request->get_type()
-                == MEMORY_OP_UPDATE ? COMMAND_write : COMMAND_read;
-            if (!addCommand(clock, type, coordinates, transaction->request)) continue;
+            if (!addCommand(clock, transaction->request->type, coordinates, transaction->request)) continue;
             rank.demandCount -= 1;
             bank.demandCount -= 1;
             bank.supplyCount -= 1;
@@ -435,6 +436,21 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
 
     queueEntry->request->incRefCounter();
     ADD_HISTORY_ADD(queueEntry->request);
+    
+    switch (message->request->get_type()) {
+        case MEMORY_OP_UPDATE:
+            queueEntry->type = COMMAND_write;
+            break;
+        case MEMORY_OP_READ:
+        case MEMORY_OP_WRITE:
+            queueEntry->type = COMMAND_read;
+            break;
+        case MEMORY_OP_MIGRATE:
+            queueEntry->type = COMMAND_migrate;
+            break;
+        default:
+            assert(0);
+    }
 
     /* yclin */
     if(message->request->get_coreSignal2()) {

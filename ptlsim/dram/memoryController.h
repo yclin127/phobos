@@ -43,6 +43,7 @@ struct RequestEntry : public FixStateListObject
 {
     MemoryRequest *request;
     Controller *source;
+    CommandType type;
     bool annuled;
     bool issued;
 
@@ -66,7 +67,7 @@ struct RequestEntry : public FixStateListObject
 
 struct TransactionEntry : public FixStateListObject
 {
-    RequestEntry *request;    
+    RequestEntry *request;  
     Coordinates coordinates;
 
     void init() {
@@ -77,8 +78,8 @@ struct TransactionEntry : public FixStateListObject
 struct CommandEntry : public FixStateListObject
 {
     RequestEntry *request;
-    Coordinates coordinates;
     CommandType type;
+    Coordinates coordinates;
     
     long issueTime;
     long finishTime;

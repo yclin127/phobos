@@ -34,27 +34,33 @@ struct BankTiming {
     int act_to_read;
     int act_to_write;
     int act_to_pre;
+    int act_to_mig;
     int read_to_pre;
+    int read_to_mig;
     int write_to_pre;
+    int write_to_mig;
     int pre_to_act;
     
-    int read_to_data;
-    int write_to_data;
+    int read_latency;
+    int write_latency;
+    int mig_latency;
 };
 
 struct ChannelEnergy {
-    int cmd;
+    int command;
     int row;
-    int col;
+    int column;
     int data;
     
     int clock_per_cycle;
 };
 
 struct RankEnergy {
-    int act;
+    int activate;
     int read;
     int write;
+    int precharge;
+    int migrate;
     int refresh;
     
     int powerup_per_cycle;
@@ -132,14 +138,20 @@ struct Config {
         int tRASf = tRAS/2;
         int tRPf = tRP/2;
         int tWRf = tWR/2;
+        
         fast_bank_timing.act_to_read = tRCDf-tAL; /** */
         fast_bank_timing.act_to_write = tRCDf-tAL; /** */
         fast_bank_timing.act_to_pre = tRASf; /** */
         fast_bank_timing.read_to_pre = tAL+tBL+std::max(tRTP, tCCD)-tCCD; /* */
         fast_bank_timing.write_to_pre = tAL+tCWL+tBL+tWRf; /* */
         fast_bank_timing.pre_to_act = tRPf; /** */
-        fast_bank_timing.read_to_data = tAL+tCL;
-        fast_bank_timing.write_to_data = tAL+tCWL;
+        fast_bank_timing.read_latency = tAL+tCL;
+        fast_bank_timing.write_latency = tAL+tCWL;
+        
+        fast_bank_timing.act_to_mig = tRCDf; /** */
+        fast_bank_timing.read_to_mig = tAL+tBL+std::max(tRTP, tCCD)-tCCD; /** */
+        fast_bank_timing.write_to_mig = tAL+tCWL+tBL+tWRf; /** */
+        fast_bank_timing.mig_latency = tRAS+tRP; /** */
         
         slow_bank_timing.act_to_read = tRCD-tAL;
         slow_bank_timing.act_to_write = tRCD-tAL;
@@ -147,8 +159,13 @@ struct Config {
         slow_bank_timing.read_to_pre = tAL+tBL+std::max(tRTP, tCCD)-tCCD;
         slow_bank_timing.write_to_pre = tAL+tCWL+tBL+tWR;
         slow_bank_timing.pre_to_act = tRP;
-        slow_bank_timing.read_to_data = tAL+tCL;
-        slow_bank_timing.write_to_data = tAL+tCWL;
+        slow_bank_timing.read_latency = tAL+tCL;
+        slow_bank_timing.write_latency = tAL+tCWL;
+        
+        slow_bank_timing.act_to_mig = tRCD; /** */
+        slow_bank_timing.read_to_mig = tAL+tBL+std::max(tRTP, tCCD)-tCCD; /** */
+        slow_bank_timing.write_to_mig = tAL+tCWL+tBL+tWR; /** */
+        slow_bank_timing.mig_latency = tRAS+tRP; /** */
     }
 };
 
@@ -167,6 +184,7 @@ protected:
     
     long actReadyTime;
     long preReadyTime;
+    long migReadyTime;
     long readReadyTime;
     long writeReadyTime;
     

@@ -182,6 +182,7 @@ namespace Memory {
 
     // interface to memory hierarchy
 	bool access_cache(MemoryRequest *request);
+    bool access_memory(MemoryRequest *request); /* yclin */
     
     void swap_page(W64 addr1, W64 addr2); /* yclin */
 

@@ -919,18 +919,20 @@ namespace OOO_CORE_MODEL {
           return (entry != NULL);
         }
         
-        void access(W64 addr, const char* label, int thread) {
+        bool access(W64 addr, const char* label, int thread) {
           TLBEntry* entry = base_t::probe(addr);
           if (entry != NULL) {
             entry->counter += 1;
             if (entry->counter == threshold) {
               /* migration ! */
               //printf("migrate  %012llx (%d) th_%d %s\n", base_t::tagof(addr)&(((1UL<<36)-1)<<12), entry->counter, thread, label);
+              return true;
             }
           } else {
             /* may need to check this out, not happend very often */
             //printf("miss %012llx (*) th_%d %s\n", base_t::tagof(addr)&(((1UL<<36)-1)<<12), thread, label);
           }
+          return false;
         }
         
         bool insert(W64 addr, const char* label, int thread) {

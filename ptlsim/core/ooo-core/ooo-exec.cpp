@@ -2385,7 +2385,25 @@ bool OooCore::mem_wakeup(void *arg) {
     Memory::MemoryRequest* request = (Memory::MemoryRequest*)arg;
     
     if (request->is_mapped()) {
-        stlb.access(request->get_virtual_address(), __FUNCTION__, get_coreid());
+        W8 coreId = get_coreid();
+        W64 address = request->get_virtual_address();
+        bool trigger = stlb.access(address, __FUNCTION__, coreId);
+        if (trigger) {
+            /* lock memory */
+            /* 1. send migrate command */
+            /* 2. update tlb & page table */
+            /* 3. update cache tags or flush them */
+            /* unlock memory */
+            
+            Memory::MemoryRequest *request = memoryHierarchy->get_free_request(coreId);
+            assert(request != NULL);
+
+            request->init(coreId, 0, address, 0, sim_cycle, false, 0, 0, Memory::MEMORY_OP_MIGRATE);
+            //request->set_coreSignal(&core.icache_signal, &core.mem_signal, -1); /* yclin */
+            //request->set_mapped(false); /* yclin */
+            
+            memoryHierarchy->access_memory(request);
+        }
     }
     
     return true;

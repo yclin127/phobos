@@ -25,8 +25,8 @@
  *
  */
 
-#ifndef MEMORY_CONTROLLER_H
-#define MEMORY_CONTROLLER_H
+#ifndef MEMORY_CONTROLLER_CONST_H
+#define MEMORY_CONTROLLER_CONST_H
 
 #include <controller.h>
 #include <interconnect.h>
@@ -112,4 +112,4 @@ class MemoryControllerConst : public Controller
 
 };
 
-#endif //MEMORY_CONTROLLER_H
+#endif //MEMORY_CONTROLLER_CONST_H

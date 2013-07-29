@@ -88,6 +88,24 @@ bool MemoryHierarchy::access_cache(MemoryRequest *request)
 	return false;
 }
 
+/* yclin */
+
+#include <memoryController.h>
+
+using namespace DRAM;
+
+bool MemoryHierarchy::access_memory(MemoryRequest *request)
+{
+    MemoryControllerHub *memController = (MemoryControllerHub*)memoryController_;
+    assert(memController != NULL);
+    
+    //memController->access(request);
+
+    return true;
+}
+
+/* yclin */
+
 void MemoryHierarchy::clock()
 {
 	// First clock all the cpu controllers

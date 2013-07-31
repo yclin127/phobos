@@ -17,6 +17,9 @@ using namespace DRAM;
 MemoryController::MemoryController(Config &config, AddressMapping &mapping, Policy &policy) :
     mapping(mapping), policy(policy)
 {
+    asym_mat_group = config.asym_mat_group;
+    asym_mat_cache = config.asym_mat_cache;
+    
     rankcount = config.rankcount;
     bankcount = config.bankcount;
     refresh_interval = config.rank_timing.refresh_interval;
@@ -31,16 +34,21 @@ MemoryController::MemoryController(Config &config, AddressMapping &mapping, Poli
         rank.demandCount = 0;
         rank.activeCount = 0;
         rank.refreshTime = refresh_step*(coordinates.rank+1);
-        rank.is_sleeping = false;
+        rank.is_sleeping = false;        
         
         for (coordinates.bank=0; coordinates.bank<bankcount; ++coordinates.bank) {
             // initialize bank
             BankData &bank = channel->getBankData(coordinates);
             bank.demandCount = 0;
             bank.rowBuffer = -1;
-            bank.mapping = new int[config.rowcount];
-            for (int i=0; i<config.rowcount; ++i) {
-              bank.mapping[i] = i;
+            bank.remapping = new int*[config.groupcount];
+            
+            for (coordinates.group=0; coordinates.group<config.groupcount; ++coordinates.group) {
+                bank.remapping[coordinates.group] = new int[config.indexcount];
+                
+                for (coordinates.index=0; coordinates.index<config.indexcount; ++coordinates.index) {
+                    bank.remapping[coordinates.group][coordinates.index] = coordinates.index;
+                }
             }
         }
     }
@@ -73,12 +81,21 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     coordinates.bank    = mapping.bank.value(address);
     coordinates.row     = mapping.row.value(address);
     coordinates.column  = mapping.column.value(address);
+    coordinates.offset  = mapping.offset.value(address);
+    
+    coordinates.group   = mapping.group.value(address);
+    coordinates.index   = mapping.index.value(address);
+    
+    if (request->request->get_type() == MEMORY_OP_MIGRATE) {
+        coordinates.column = 0;
+        coordinates.offset = request->request->get_virtual_address();
+    }
     
     RankData &rank = channel->getRankData(coordinates);
     BankData &bank = channel->getBankData(coordinates);
     
-    /* Address mapping for row migrations. */
-    coordinates.row = bank.mapping[coordinates.row];
+    /* Address remapping for row migrations. */
+    coordinates.index = bank.remapping[coordinates.group][coordinates.index];
     
     rank.demandCount += 1;
     bank.demandCount += 1;
@@ -209,7 +226,7 @@ void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
                 }
             }
             
-            // Read / Write
+            // Read / Write / Migrate
             assert(bank.rowBuffer == coordinates->row);
             assert(bank.supplyCount > 0);
             if (!addCommand(clock, transaction->request->type, coordinates, transaction->request)) continue;
@@ -217,6 +234,15 @@ void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
             bank.demandCount -= 1;
             bank.supplyCount -= 1;
             bank.hitCount += 1;
+            
+            // Migrate
+            if (transaction->request->type == COMMAND_migrate && asym_mat_cache) {
+                int* remapping  = bank.remapping[coordinates->group];
+                
+                int temp = remapping[coordinates->index];
+                remapping[coordinates->index] = remapping[coordinates->offset];
+                remapping[coordinates->offset] = temp;
+            }
             
             pendingTransactions_.free(transaction);
         }
@@ -304,34 +330,42 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     
     {
         dramconfig = *get_dram_config(type);
+        
         dramconfig.channelcount = channelcount;
         dramconfig.rankcount = ram_size/dramconfig.ranksize/dramconfig.channelcount;
+        dramconfig.rowcount = dramconfig.ranksize/dramconfig.bankcount/dramconfig.columncount/dramconfig.offsetcount;
+        dramconfig.groupcount = dramconfig.rowcount/asym_mat_group;
+        dramconfig.indexcount = asym_mat_group;
+        
         dramconfig.asym_mat_group = asym_mat_group;
-        dramconfig.asym_mat_ratio = asym_mat_ratio;
+        dramconfig.asym_mat_cache = asym_mat_ratio>0 ? asym_mat_group/asym_mat_ratio : 0;
     }
-     
+    
     {
-        clock_num = 8*1000000000L;
-        clock_den = ((long)(8*dramconfig.clock))*config.core_freq_hz;
+        clock_num = 1000000000L;
+        clock_den = dramconfig.clock*config.core_freq_hz;
         clock_rem = 0;
         clock_mem = 0;
     
-        int channel, rank, row;
-        for (channel=0; (1<<channel)<dramconfig.channelcount; channel+=1);
-        for (rank=0; (1<<rank)<dramconfig.rankcount; rank+=1);
-        for (row=0; (1L<<(row+13+3))<dramconfig.ranksize; row+=1);
-
-        int offset = 6;
-        mapping.channel.offset = offset; offset +=
-        mapping.channel.width  = channel;
-        mapping.column.offset  = offset; offset +=
-        mapping.column.width   = 7;
-        mapping.bank.offset    = offset; offset +=
-        mapping.bank.width     = 3;
-        mapping.rank.offset    = offset; offset +=
-        mapping.rank.width     = rank;
-        mapping.row.offset     = offset; offset +=
-        mapping.row.width      = row;
+        int shift = 0;
+        mapping.offset.shift  = shift; shift +=
+        mapping.offset.width  = log_2(dramconfig.offsetcount);
+        mapping.channel.shift = shift; shift +=
+        mapping.channel.width = log_2(dramconfig.channelcount);
+        mapping.column.shift  = shift; shift +=
+        mapping.column.width  = log_2(dramconfig.columncount);
+        mapping.bank.shift    = shift; shift +=
+        mapping.bank.width    = log_2(dramconfig.bankcount);
+        mapping.rank.shift    = shift; shift +=
+        mapping.rank.width    = log_2(dramconfig.rankcount);
+        mapping.row.shift     = shift; shift +=
+        mapping.row.width     = log_2(dramconfig.rowcount);
+        
+        shift = mapping.row.shift;
+        mapping.group.shift   = shift; shift +=
+        mapping.group.width   = log_2(dramconfig.groupcount);
+        mapping.index.shift   = shift; shift +=
+        mapping.index.width   = log_2(dramconfig.indexcount);
     }
     
     controller = new MemoryController*[channelcount];
@@ -437,6 +471,7 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
     queueEntry->request->incRefCounter();
     ADD_HISTORY_ADD(queueEntry->request);
     
+    /* yclin */
     switch (message->request->get_type()) {
         case MEMORY_OP_UPDATE:
             queueEntry->type = COMMAND_write;
@@ -452,8 +487,7 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
             assert(0);
     }
 
-    /* yclin */
-    if(message->request->get_coreSignal2()) {
+    if (message->request->get_coreSignal2()) {
         message->request->get_coreSignal2()->emit((void*)message->request);
     }
     /* yclin */

@@ -2395,13 +2395,11 @@ bool OooCore::mem_wakeup(void *arg) {
             /* 3. update cache tags or flush them */
             /* unlock memory */
             
-            Memory::MemoryRequest *request = memoryHierarchy->get_free_request(coreId);
-            assert(request != NULL);
-
-            request->init(coreId, 0, address, 0, sim_cycle, false, 0, 0, Memory::MEMORY_OP_MIGRATE);
-            //request->set_coreSignal(&core.icache_signal, &core.mem_signal, -1); /* yclin */
-            //request->set_mapped(false); /* yclin */
+            Memory::MemoryRequest *request;
             
+            request = memoryHierarchy->get_free_request(coreId);
+            request->init(coreId, 0, address, 0, sim_cycle, false, 0, 0, Memory::MEMORY_OP_MIGRATE);
+            request->set_coreSignal(NULL, NULL, stlb.get_place());
             memoryHierarchy->access_memory(request);
         }
     }

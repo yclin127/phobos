@@ -48,7 +48,8 @@ static const char* memory_op_names[NUM_MEMORY_OP] = {
 	"memory_op_read",
 	"memory_op_write",
 	"memory_op_update",
-	"memory_op_evict"
+	"memory_op_evict",
+	"memory_op_migrate"
 };
 
 class MemoryRequest: public selfqueuelink

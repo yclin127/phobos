@@ -76,9 +76,13 @@ struct Config {
     int bankcount;
     int rowcount;
     int columncount;
+    int offsetcount;
+    
+    int groupcount;
+    int indexcount;
     
     int asym_mat_group;
-    int asym_mat_ratio;
+    int asym_mat_cache;
     
     float clock;
     
@@ -109,10 +113,14 @@ struct Config {
         rankcount = -1;
         bankcount = BANK;
         rowcount = ((ranksize/BANK)>>13);
-        columncount = 1<<13;
+        columncount = 1<<7;
+        offsetcount = 1<<6;
+        
+        groupcount = -1;
+        indexcount = -1;
         
         asym_mat_group = -1;
-        asym_mat_ratio = -1;
+        asym_mat_cache = -1;
         
         clock = tCK;
         
@@ -180,7 +188,7 @@ protected:
     BankData data;
     
     int asym_mat_group;
-    int asym_mat_ratio;
+    int asym_mat_cache;
     
     long actReadyTime;
     long preReadyTime;

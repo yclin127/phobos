@@ -905,9 +905,16 @@ namespace OOO_CORE_MODEL {
         typedef AssociativeArray<W64, TLBEntry, size/4, 4, PAGE_SIZE> base_t;
         
         int threshold;
+        int place;
         
         TranslationLookasideBuffer() {
             threshold = 8;
+        }
+        
+        W64 get_place() {
+            W64 result = place;
+            place = (place+1)%PAGE_SIZE;
+            return result;
         }
 
         void reset() {

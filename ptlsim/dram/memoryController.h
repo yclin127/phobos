@@ -13,16 +13,30 @@ namespace DRAM {
     
 struct BitField {
     unsigned width;
-    unsigned offset;
+    unsigned shift;
     
     long value(long address) {
-        return (address >> offset) & ((1 << width) - 1);
+        return (address >> shift) & ((1 << width) - 1);
+    }
+    
+    long pack(long value) {
+        return value << shift;
     }
     
     long filter(long address) {
-        return address & (((1 << width) - 1) << offset);
+        return address & (((1 << width) - 1) << shift);
+    }
+    
+    long pad(long value) {
+        return value << shift;
     }
 };
+
+inline int log_2(int value) {
+    int result;
+    for (result=0; (1<<result)<value; result+=1);
+    return result;
+}
 
 struct AddressMapping {
     BitField channel;
@@ -30,6 +44,10 @@ struct AddressMapping {
     BitField bank;
     BitField row;
     BitField column;
+    BitField offset;
+    
+    BitField group;
+    BitField index;
 };
 
 struct Policy {
@@ -96,6 +114,9 @@ class MemoryController
     private:
         AddressMapping &mapping;
         Policy &policy;
+    
+        int asym_mat_group;
+        int asym_mat_cache;
     
         int rankcount;
         int bankcount;

@@ -1,4 +1,4 @@
 all: 
-	scons debug=1
+	scons
 clean:
 	scons -c

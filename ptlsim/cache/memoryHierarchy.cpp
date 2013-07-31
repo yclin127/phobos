@@ -96,12 +96,21 @@ using namespace DRAM;
 
 bool MemoryHierarchy::access_memory(MemoryRequest *request)
 {
-    MemoryControllerHub *memController = (MemoryControllerHub*)memoryController_;
-    assert(memController != NULL);
-    
-    //memController->access(request);
+	MemoryControllerHub *memController = (MemoryControllerHub*)memoryController_;
+	assert(memController != NULL);
 
-    return true;
+	Message& message = *get_message();
+	message.sender = this;
+	message.request = request;
+	message.hasData = false;
+	message.arg = NULL;
+
+	bool ret_val;
+	ret_val = memController->get_interconnect_signal()->emit((void *)&message);
+
+	free_message(&message);
+
+	return ret_val;
 }
 
 /* yclin */

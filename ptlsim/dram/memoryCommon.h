@@ -24,6 +24,10 @@ struct Coordinates {
     int bank;
     int row;
     int column;
+    int offset;
+    
+    int group;
+    int index;
     
     friend std::ostream &operator <<(std::ostream &os, Coordinates &coordinates) {
         os << "{"
@@ -32,6 +36,9 @@ struct Coordinates {
            << ", bank: " << (int)coordinates.bank 
            << ", row: " << (int)coordinates.row 
            << ", column: " << (int)coordinates.column
+           << ", offset: " << (int)coordinates.offset
+           << ", group: " << (int)coordinates.group
+           << ", index: " << (int)coordinates.index
            << "}";
         return os;
     }
@@ -44,7 +51,7 @@ struct BankData {
     int supplyCount;
     int rowBuffer;
     int hitCount;
-    int *mapping;
+    int **remapping;
 };
 
 struct RankData {

@@ -83,6 +83,7 @@ void MemoryRequest::init(MemoryRequest *request)
 	opType_ = request->opType_;
 	isData_ = request->isData_;
     isMapped_ = request->isMapped_; /* yclin */
+    virtualAddress_ = request->virtualAddress_; /* yclin */
 
 	if(history) delete history;
 	history = new stringbuf();

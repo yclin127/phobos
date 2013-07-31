@@ -364,7 +364,7 @@ Bank::Bank(Config *config)
     slow_timing = &config->slow_bank_timing;
     
     asym_mat_group = config->asym_mat_group;
-    asym_mat_ratio = config->asym_mat_ratio;
+    asym_mat_cache = config->asym_mat_cache;
     
     actReadyTime   = 0;
     preReadyTime   = -1;
@@ -426,7 +426,7 @@ long Bank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
 {
     BankTiming *timing;
     
-    if ((coordinates.row%asym_mat_group)*asym_mat_ratio < asym_mat_group && asym_mat_ratio > 0) {
+    if (coordinates.index < asym_mat_cache) {
         timing = fast_timing;
     } else {
         timing = slow_timing;

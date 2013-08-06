@@ -10,45 +10,6 @@
 using namespace Memory;
 
 namespace DRAM {
-    
-struct BitField {
-    unsigned width;
-    unsigned shift;
-    
-    long value(long address) {
-        return (address >> shift) & ((1 << width) - 1);
-    }
-    
-    long pack(long value) {
-        return value << shift;
-    }
-    
-    long filter(long address) {
-        return address & (((1 << width) - 1) << shift);
-    }
-    
-    long pad(long value) {
-        return value << shift;
-    }
-};
-
-inline int log_2(int value) {
-    int result;
-    for (result=0; (1<<result)<value; result+=1);
-    return result;
-}
-
-struct AddressMapping {
-    BitField channel;
-    BitField rank;
-    BitField bank;
-    BitField row;
-    BitField column;
-    BitField offset;
-    
-    BitField group;
-    BitField index;
-};
 
 struct Policy {
     int max_row_idle;
@@ -133,6 +94,8 @@ class MemoryController
         FixStateList<RequestEntry, MEM_REQ_NUM> pendingRequests_;
         FixStateList<TransactionEntry, MEM_TRANS_NUM> pendingTransactions_;
         FixStateList<CommandEntry, MEM_CMD_NUM> pendingCommands_;
+        
+        void translate(W64 address, Coordinates &coordinates);
         
         bool addTransaction(long clock, RequestEntry *request);
         bool addCommand(long clock, CommandType type, Coordinates *coordinates, RequestEntry *request);

@@ -43,15 +43,7 @@ MemoryController::MemoryController(Config &config, AddressMapping &mapping, Poli
             BankData &bank = channel->getBankData(coordinates);
             bank.demandCount = 0;
             bank.rowBuffer = -1;
-            bank.remapping = new int*[groupcount];
-            
-            for (coordinates.group=0; coordinates.group<groupcount; ++coordinates.group) {
-                bank.remapping[coordinates.group] = new int[indexcount];
-                
-                for (coordinates.index=0; coordinates.index<indexcount; ++coordinates.index) {
-                    bank.remapping[coordinates.group][coordinates.index] = coordinates.index;
-                }
-            }
+            bank.remapping.init(groupcount, indexcount);
         }
     }
 }
@@ -59,6 +51,25 @@ MemoryController::MemoryController(Config &config, AddressMapping &mapping, Poli
 MemoryController::~MemoryController()
 {
     delete channel;
+}
+
+void MemoryController::translate(W64 address, Coordinates &coordinates)
+{
+    /** Address mapping scheme goes here. */
+    
+    coordinates.channel = mapping.channel.value(address);
+    coordinates.rank    = mapping.rank.value(address);
+    coordinates.bank    = mapping.bank.value(address);
+    coordinates.row     = mapping.row.value(address);
+    coordinates.column  = mapping.column.value(address);
+    coordinates.offset  = mapping.offset.value(address);
+    
+    coordinates.group   = mapping.group.value(address);
+    coordinates.index   = mapping.index.value(address);
+    
+    /* Address remapping for row migrations. */
+    BankData &bank = channel->getBankData(coordinates);
+    coordinates.place = bank.remapping.map(coordinates.group, coordinates.index);
 }
 
 bool MemoryController::addTransaction(long clock, RequestEntry *request)
@@ -73,31 +84,24 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
 
     queueEntry->request = request;
     
-    /** Address mapping scheme goes here. */
-    
     W64 address = request->request->get_physical_address();
     Coordinates &coordinates = queueEntry->coordinates;
     
-    coordinates.channel = mapping.channel.value(address);
-    coordinates.rank    = mapping.rank.value(address);
-    coordinates.bank    = mapping.bank.value(address);
-    coordinates.row     = mapping.row.value(address);
-    coordinates.column  = mapping.column.value(address);
-    coordinates.offset  = mapping.offset.value(address);
-    
-    coordinates.group   = mapping.group.value(address);
-    coordinates.index   = mapping.index.value(address);
-    
+    translate(address, coordinates);
     if (request->request->get_type() == MEMORY_OP_MIGRATE) {
         coordinates.column = 0;
-        coordinates.offset = mapping.index.value(request->request->get_virtual_address());
+        coordinates.offset = request->request->get_virtual_address();
+        
+        total_migs_committed += 1;
+    } else {
+        total_accs_committed += 1;
+        if (asym_mat_ratio > 0 && coordinates.place % asym_mat_ratio == 0) {
+            total_caps_committed += 1;
+        }
     }
     
     RankData &rank = channel->getRankData(coordinates);
     BankData &bank = channel->getBankData(coordinates);
-    
-    /* Address remapping for row migrations. */
-    coordinates.index = bank.remapping[coordinates.group][coordinates.index];
     
     rank.demandCount += 1;
     bank.demandCount += 1;
@@ -238,12 +242,8 @@ void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
             bank.hitCount += 1;
             
             // Migrate
-            if (transaction->request->type == COMMAND_migrate && asym_mat_ratio > 0) {
-                int* remapping  = bank.remapping[coordinates->group];
-                
-                int temp = remapping[coordinates->index];
-                remapping[coordinates->index] = remapping[coordinates->offset];
-                remapping[coordinates->offset] = temp;
+            if (asym_mat_ratio > 0 && transaction->request->type == COMMAND_migrate) {
+                bank.remapping.swap(coordinates->group, coordinates->place, coordinates->offset);
             }
             
             pendingTransactions_.free(transaction);
@@ -395,14 +395,19 @@ MemoryControllerHub::~MemoryControllerHub()
 
 bool MemoryControllerHub::is_movable(W64 address)
 {
-    return dramconfig.asym_mat_ratio > 0 && mapping.index.value(address) % dramconfig.asym_mat_ratio != 0;
+    if (dramconfig.asym_mat_ratio == 0)
+        return false;
+    
+    Coordinates coordinates;
+    int channel = mapping.channel.value(address);
+    controller[channel]->translate(address, coordinates);
+    return coordinates.place % dramconfig.asym_mat_ratio != 0;
 }
 
 int  MemoryControllerHub::next_victim()
 {
     int result = victim;
-    victim = mapping.index.value(victim+dramconfig.asym_mat_ratio);
-    assert(!is_movable(victim));
+    victim = mapping.index.clamp(victim+dramconfig.asym_mat_ratio);
     return result;
 }
 
@@ -493,16 +498,13 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
     switch (message->request->get_type()) {
         case MEMORY_OP_UPDATE:
             queueEntry->type = COMMAND_write;
-            total_accs_committed += 1;
             break;
         case MEMORY_OP_READ:
         case MEMORY_OP_WRITE:
             queueEntry->type = COMMAND_read;
-            total_accs_committed += 1;
             break;
         case MEMORY_OP_MIGRATE:
             queueEntry->type = COMMAND_migrate;
-            total_migs_committed += 1;
             break;
         default:
             assert(0);

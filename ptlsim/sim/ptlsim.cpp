@@ -59,6 +59,7 @@ W64 total_uops_executed = 0;
 W64 total_uops_committed = 0;
 W64 total_insns_committed = 0;
 W64 total_migs_committed = 0; /* yclin */
+W64 total_caps_committed = 0; /* yclin */
 W64 total_accs_committed = 0; /* yclin */
 W64 total_basic_blocks_committed = 0;
 
@@ -1449,6 +1450,7 @@ extern "C" void update_progress() {
     sb << "Completed " 
       << intstring(sim_cycle, 13) << " cycles, " 
       << intstring(total_accs_committed, 11) << " accesses, " 
+      << intstring(total_caps_committed, 11) << " captures, " 
       << intstring(total_migs_committed, 9) << " migrations, " 
       << intstring(total_insns_committed, 13) << " commits: " 
       << intstring((W64)cycles_per_sec, 9) << " Hz, " 

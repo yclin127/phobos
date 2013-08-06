@@ -18,10 +18,12 @@ MemoryController::MemoryController(Config &config, AddressMapping &mapping, Poli
     mapping(mapping), policy(policy)
 {
     asym_mat_group = config.asym_mat_group;
-    asym_mat_cache = config.asym_mat_cache;
+    asym_mat_ratio = config.asym_mat_ratio;
     
     rankcount = config.rankcount;
     bankcount = config.bankcount;
+    groupcount = config.groupcount;
+    indexcount = config.indexcount;
     refresh_interval = config.rank_timing.refresh_interval;
     channel = new Channel(&config);
     
@@ -41,12 +43,12 @@ MemoryController::MemoryController(Config &config, AddressMapping &mapping, Poli
             BankData &bank = channel->getBankData(coordinates);
             bank.demandCount = 0;
             bank.rowBuffer = -1;
-            bank.remapping = new int*[config.groupcount];
+            bank.remapping = new int*[groupcount];
             
-            for (coordinates.group=0; coordinates.group<config.groupcount; ++coordinates.group) {
-                bank.remapping[coordinates.group] = new int[config.indexcount];
+            for (coordinates.group=0; coordinates.group<groupcount; ++coordinates.group) {
+                bank.remapping[coordinates.group] = new int[indexcount];
                 
-                for (coordinates.index=0; coordinates.index<config.indexcount; ++coordinates.index) {
+                for (coordinates.index=0; coordinates.index<indexcount; ++coordinates.index) {
                     bank.remapping[coordinates.group][coordinates.index] = coordinates.index;
                 }
             }
@@ -88,7 +90,7 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     
     if (request->request->get_type() == MEMORY_OP_MIGRATE) {
         coordinates.column = 0;
-        coordinates.offset = request->request->get_virtual_address();
+        coordinates.offset = mapping.index.value(request->request->get_virtual_address());
     }
     
     RankData &rank = channel->getRankData(coordinates);
@@ -236,7 +238,7 @@ void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
             bank.hitCount += 1;
             
             // Migrate
-            if (transaction->request->type == COMMAND_migrate && asym_mat_cache) {
+            if (transaction->request->type == COMMAND_migrate && asym_mat_ratio > 0) {
                 int* remapping  = bank.remapping[coordinates->group];
                 
                 int temp = remapping[coordinates->index];
@@ -295,6 +297,7 @@ void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
                 case COMMAND_read_precharge:
                 case COMMAND_write:
                 case COMMAND_write_precharge:
+                case COMMAND_migrate:
                     marss_add_event(&accessCompleted_, command->finishTime-clock, command->request);
                     break;
                     
@@ -338,7 +341,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         dramconfig.indexcount = asym_mat_group;
         
         dramconfig.asym_mat_group = asym_mat_group;
-        dramconfig.asym_mat_cache = asym_mat_ratio>0 ? asym_mat_group/asym_mat_ratio : 0;
+        dramconfig.asym_mat_ratio = asym_mat_ratio;
     }
     
     {
@@ -378,6 +381,8 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     
     SET_SIGNAL_CB(name, "_Wait_Interconnect", waitInterconnect_,
             &MemoryControllerHub::wait_interconnect_cb);
+    
+    victim = 0;
 }
 
 MemoryControllerHub::~MemoryControllerHub()
@@ -386,6 +391,19 @@ MemoryControllerHub::~MemoryControllerHub()
         delete controller[channel];
     }
     delete [] controller;
+}
+
+bool MemoryControllerHub::is_movable(W64 address)
+{
+    return dramconfig.asym_mat_ratio > 0 && mapping.index.value(address) % dramconfig.asym_mat_ratio != 0;
+}
+
+int  MemoryControllerHub::next_victim()
+{
+    int result = victim;
+    victim = mapping.index.value(victim+dramconfig.asym_mat_ratio);
+    assert(!is_movable(victim));
+    return result;
 }
 
 void MemoryControllerHub::register_interconnect(Interconnect *interconnect,
@@ -475,13 +493,16 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
     switch (message->request->get_type()) {
         case MEMORY_OP_UPDATE:
             queueEntry->type = COMMAND_write;
+            total_accs_committed += 1;
             break;
         case MEMORY_OP_READ:
         case MEMORY_OP_WRITE:
             queueEntry->type = COMMAND_read;
+            total_accs_committed += 1;
             break;
         case MEMORY_OP_MIGRATE:
             queueEntry->type = COMMAND_migrate;
+            total_migs_committed += 1;
             break;
         default:
             assert(0);
@@ -534,11 +555,15 @@ bool MemoryControllerHub::wait_interconnect_cb(void *arg)
     bool success = false;
 
     /* Don't send response if its a memory update request */
-    if(queueEntry->request->get_type() == MEMORY_OP_UPDATE) {
-        queueEntry->request->decRefCounter();
-        ADD_HISTORY_REM(queueEntry->request);
-        controller[channel]->pendingRequests_.free(queueEntry);
-        return true;
+    switch (queueEntry->request->get_type()) {
+        case MEMORY_OP_UPDATE:
+        case MEMORY_OP_MIGRATE: /* yclin */
+            queueEntry->request->decRefCounter();
+            ADD_HISTORY_REM(queueEntry->request);
+            controller[channel]->pendingRequests_.free(queueEntry);
+            return true;
+        default:
+            break;
     }
 
     /* First send response of the current request */

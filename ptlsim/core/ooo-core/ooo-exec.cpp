@@ -2386,9 +2386,10 @@ bool OooCore::mem_wakeup(void *arg) {
     
     if (request->is_mapped()) {
         W8 coreId = get_coreid();
-        W64 address = request->get_virtual_address();
-        bool trigger = stlb.access(address, __FUNCTION__, coreId);
-        if (trigger) {
+        W64 virtaddr = request->get_virtual_address();
+        W64 physaddr = request->get_physical_address();
+        bool trigger = stlb.access(virtaddr, __FUNCTION__, coreId);
+        if (trigger && memoryHierarchy->asym_is_movable(physaddr)) {
             /* lock memory */
             /* 1. send migrate command */
             /* 2. update tlb & page table */
@@ -2396,10 +2397,11 @@ bool OooCore::mem_wakeup(void *arg) {
             /* unlock memory */
             
             Memory::MemoryRequest *request;
+            int victim = memoryHierarchy->asym_next_victim();
             
             request = memoryHierarchy->get_free_request(coreId);
-            request->init(coreId, 0, address, 0, sim_cycle, false, 0, 0, Memory::MEMORY_OP_MIGRATE);
-            request->set_coreSignal(NULL, NULL, stlb.get_place());
+            request->init(coreId, 0, physaddr, 0, sim_cycle, false, 0, 0, Memory::MEMORY_OP_MIGRATE);
+            request->set_coreSignal(NULL, NULL, victim);
             memoryHierarchy->access_memory(request);
         }
     }

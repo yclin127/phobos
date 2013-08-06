@@ -82,7 +82,7 @@ struct Config {
     int indexcount;
     
     int asym_mat_group;
-    int asym_mat_cache;
+    int asym_mat_ratio;
     
     float clock;
     
@@ -120,7 +120,7 @@ struct Config {
         indexcount = -1;
         
         asym_mat_group = -1;
-        asym_mat_cache = -1;
+        asym_mat_ratio = -1;
         
         clock = tCK;
         
@@ -188,7 +188,7 @@ protected:
     BankData data;
     
     int asym_mat_group;
-    int asym_mat_cache;
+    int asym_mat_ratio;
     
     long actReadyTime;
     long preReadyTime;

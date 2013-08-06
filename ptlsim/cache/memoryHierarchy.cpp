@@ -113,6 +113,22 @@ bool MemoryHierarchy::access_memory(MemoryRequest *request)
 	return ret_val;
 }
 
+bool MemoryHierarchy::asym_is_movable(W64 address)
+{
+    MemoryControllerHub *memController = (MemoryControllerHub*)memoryController_;
+    assert(memController != NULL);
+    
+    return memController->is_movable(address);
+}
+
+int MemoryHierarchy::asym_next_victim()
+{
+    MemoryControllerHub *memController = (MemoryControllerHub*)memoryController_;
+    assert(memController != NULL);
+    
+    return memController->next_victim();
+}
+
 /* yclin */
 
 void MemoryHierarchy::clock()

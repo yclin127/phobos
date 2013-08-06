@@ -905,16 +905,9 @@ namespace OOO_CORE_MODEL {
         typedef AssociativeArray<W64, TLBEntry, size/4, 4, PAGE_SIZE> base_t;
         
         int threshold;
-        int place;
         
         TranslationLookasideBuffer() {
             threshold = 8;
-        }
-        
-        W64 get_place() {
-            W64 result = place;
-            place = (place+1)%PAGE_SIZE;
-            return result;
         }
 
         void reset() {
@@ -932,12 +925,18 @@ namespace OOO_CORE_MODEL {
             entry->counter += 1;
             if (entry->counter == threshold) {
               /* migration ! */
-              //printf("migrate  %012llx (%d) th_%d %s\n", base_t::tagof(addr)&(((1UL<<36)-1)<<12), entry->counter, thread, label);
+              /* printf("migrate  %012llx (%d) th_%d %s\n", 
+               * base_t::tagof(addr)&(((1UL<<36)-1)<<12), 
+               * entry->counter, thread, label);
+               */
               return true;
             }
           } else {
             /* may need to check this out, not happend very often */
-            //printf("miss %012llx (*) th_%d %s\n", base_t::tagof(addr)&(((1UL<<36)-1)<<12), thread, label);
+            /* printf("miss %012llx (*) th_%d %s\n", 
+             * base_t::tagof(addr)&(((1UL<<36)-1)<<12), 
+             * thread, label);
+             */
           }
           return false;
         }
@@ -949,7 +948,10 @@ namespace OOO_CORE_MODEL {
           if (oldtag != tag) {
             if (oldtag != InvalidTag<W64>::INVALID) {
               /* eviction */
-              //printf("evict %012llx (%d) th_%d %s\n", oldtag&(((1UL<<36)-1)<<12), entry->counter, thread, label);
+              /* printf("evict %012llx (%d) th_%d %s\n", 
+               * oldtag&(((1UL<<36)-1)<<12), 
+               * entry->counter, thread, label);
+               */
             }
             entry->counter = 0;
           }

@@ -116,10 +116,12 @@ class MemoryController
         Policy &policy;
     
         int asym_mat_group;
-        int asym_mat_cache;
+        int asym_mat_ratio;
     
         int rankcount;
         int bankcount;
+        int groupcount;
+        int indexcount;
         int refresh_interval;
 
     public:
@@ -154,10 +156,15 @@ class MemoryControllerHub : public Controller
         MemoryController **controller;
         long clock_num, clock_den;
         long clock_rem, clock_mem;
+        
+        int victim;
 
     public:
         MemoryControllerHub(W8 coreid, const char *name, MemoryHierarchy *memoryHierarchy, int type);
         virtual ~MemoryControllerHub();
+        
+        bool is_movable(W64 address);
+        int  next_victim();
         
         void register_interconnect(Interconnect *interconnect, int type);
         

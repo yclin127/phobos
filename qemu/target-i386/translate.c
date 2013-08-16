@@ -7874,8 +7874,14 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         if (num_insns + 1 == max_insns && (tb->cflags & CF_LAST_IO))
             gen_io_start();
 
+#if 1 /* yclin */
+        code_marker_insn_begin();
+#endif
         pc_ptr = disas_insn(dc, pc_ptr);
         num_insns++;
+#if 1 /* yclin */
+        code_marker_insn_end();
+#endif
         /* stop translation if indicated */
         if (dc->is_jmp)
             break;

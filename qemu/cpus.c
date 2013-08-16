@@ -874,11 +874,21 @@ void vm_stop(int reason)
 
 #endif
 
+#if 1 /* yclin */
+extern int tracer_toggle_request;
+#endif
+
 static int qemu_cpu_exec(CPUState *env)
 {
     int ret;
 #ifdef CONFIG_PROFILER
     int64_t ti;
+#endif
+
+#if 1 /* yclin */
+    if (tracer_toggle_request) {
+        tb_flush(env);
+    }
 #endif
 
 #ifdef CONFIG_PROFILER

@@ -123,6 +123,15 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
+#if 1 /* yclin */
+#ifdef SOFTMMU_CODE_ACCESS
+            target_ulong paddr =  addr + env->tlb_table[mmu_idx][index].phys_addend;
+            code_marker_access(addr, paddr, TRACER_CODE_TYPE(DATA_SIZE, mmu_idx, env->cpu_index));
+#else
+            target_ulong paddr =  addr + env->tlb_table[mmu_idx][index].phys_addend;
+            memory_tracer_access(addr, paddr, TRACER_READ_TYPE(DATA_SIZE, mmu_idx, env->cpu_index));
+#endif
+#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -178,6 +187,15 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* unaligned/aligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
+#if 1 /* yclin */
+#ifdef SOFTMMU_CODE_ACCESS
+            target_ulong paddr =  addr + env->tlb_table[mmu_idx][index].phys_addend;
+            code_marker_access(addr, paddr, TRACER_CODE_TYPE(DATA_SIZE, mmu_idx, env->cpu_index));
+#else
+            target_ulong paddr =  addr + env->tlb_table[mmu_idx][index].phys_addend;
+            memory_tracer_access(addr, paddr, TRACER_READ_TYPE(DATA_SIZE, mmu_idx, env->cpu_index));
+#endif
+#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -261,6 +279,10 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
+#if 1 /* yclin */
+            target_ulong paddr =  addr + env->tlb_table[mmu_idx][index].phys_addend;
+            memory_tracer_access(addr, paddr, TRACER_WRITE_TYPE(DATA_SIZE, mmu_idx, env->cpu_index));
+#endif
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -313,6 +335,10 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* aligned/unaligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
+#if 1 /* yclin */
+            target_ulong paddr =  addr + env->tlb_table[mmu_idx][index].phys_addend;
+            memory_tracer_access(addr, paddr, TRACER_WRITE_TYPE(DATA_SIZE, mmu_idx, env->cpu_index));
+#endif
         }
     } else {
         /* the page is not in the TLB : fill it */

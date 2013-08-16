@@ -31,6 +31,10 @@
 #include "tcg.h"
 #include "qemu-timer.h"
 
+#if 1 /* yclin */
+#include "tracer/code_marker.h"
+#endif
+
 /* code generation context */
 TCGContext tcg_ctx;
 
@@ -70,7 +74,13 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 #endif
     tcg_func_start(s);
 
+#if 1 /* yclin */
+    code_marker_begin();
+#endif
     gen_intermediate_code(env, tb);
+#if 1 /* yclin */
+    code_marker_end();
+#endif
 
     /* generate machine code */
     gen_code_buf = tb->tc_ptr;
@@ -127,7 +137,13 @@ int cpu_restore_state(TranslationBlock *tb,
 #endif
     tcg_func_start(s);
 
+#if 1 /* yclin */
+    code_marker_begin();
+#endif
     gen_intermediate_code_pc(env, tb);
+#if 1 /* yclin */
+    code_marker_end();
+#endif
 
     if (use_icount) {
         /* Reset the cycle counter to the start of the block.  */

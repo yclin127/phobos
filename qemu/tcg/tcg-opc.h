@@ -307,4 +307,9 @@ DEF(qemu_st64, 0, 2, 1, TCG_OPF_CALL_CLOBBER | TCG_OPF_SIDE_EFFECTS)
 
 #endif /* TCG_TARGET_REG_BITS != 32 */
 
+#if 1 /* yclin */
+DEF(iblock, 0, 0, 1, 0)
+DEF(istep, 0, 0, 1, 0)
+#endif
+
 #undef DEF

@@ -271,6 +271,10 @@ extern int tb_invalidated_flag;
 
 #if !defined(CONFIG_USER_ONLY)
 
+#if 1 /* yclin */
+#include "tracer/tracer.h"
+#endif
+
 extern CPUWriteMemoryFunc *io_mem_write[IO_MEM_NB_ENTRIES][4];
 extern CPUReadMemoryFunc *io_mem_read[IO_MEM_NB_ENTRIES][4];
 extern void *io_mem_opaque[IO_MEM_NB_ENTRIES];

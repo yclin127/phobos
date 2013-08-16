@@ -48,6 +48,10 @@
 #define env cpu_single_env
 #endif
 
+#if 1 /* yclin */
+#include "tracer/code_marker.h"
+#endif
+
 int tb_invalidated_flag;
 
 //#define CONFIG_DEBUG_EXEC
@@ -840,7 +844,11 @@ int cpu_exec(CPUState *env1)
                 /* reset soft MMU for next block (it can currently
                    only be set by a memory fault) */
             } /* for(;;) */
-        }
+        } else {
+#if 1 /* yclin */
+            code_marker_end();
+#endif
+		}
     } /* for(;;) */
 
 

@@ -209,8 +209,8 @@ for ui_file in Split(ui_files):
 
 # if env['cocoa'] == True:
     # comm_files += " cocoa.c"
-if env['iothread'] == True:
-    comm_files += " qemu-thread.c"
+#if env['iothread'] == True:
+comm_files += " qemu-thread.c"
 
 comm_files += " acl.c iov.c"
 comm_files += " notify.c "
@@ -317,6 +317,13 @@ cpu_emu_objs += " disas.c"
 # We are compiling for i386 or x86_64 only so set USE_I386_DIS to true
 USE_I386_DIS = True
 cpu_emu_objs += " i386-dis.c"
+
+# yclin
+cpu_emu_objs += " tracer/code_marker.c"
+cpu_emu_objs += " tracer/sync_queue.c"
+cpu_emu_objs += " tracer/cache_filter.c"
+cpu_emu_objs += " tracer/trace_file.c"
+# yclin
 
 # libqemu
 libqemu = env.Library('qemu', Split(cpu_emu_objs))

@@ -696,6 +696,11 @@ static void page_flush_tb(void)
     }
 }
 
+#if 1 /* yclin */
+#include "tracer/memory_tracer.h"
+int tracer_toggle_request = 0;
+#endif
+
 /* flush all the translation blocks */
 /* XXX: tb_flush is currently not thread safe */
 void tb_flush(CPUState *env1)
@@ -709,6 +714,15 @@ void tb_flush(CPUState *env1)
 #endif
     if ((unsigned long)(code_gen_ptr - code_gen_buffer) > code_gen_buffer_size)
         cpu_abort(env1, "Internal error: code buffer overflow\n");
+   
+#if 1 /* yclin */
+    if (tracer_toggle_request) {
+        memory_tracer_toggle();
+        tracer_toggle_request = 0;
+    } else {
+        memory_tracer_flush();
+    }
+#endif
 
     nb_tbs = 0;
 

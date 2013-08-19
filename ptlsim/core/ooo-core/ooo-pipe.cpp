@@ -82,7 +82,7 @@ bool ThreadContext::probeitlb(Waddr icache_addr) {
 
     /* yclin */
     // if(!i(icache_addr, threadid)) {
-    if(!getcore().stlb.probe(icache_addr, __FUNCTION__, coreid)) {
+    if(!getcore().stlb.probe(icache_addr)) {
     /* yclin */
 
         if(logable(6)) {
@@ -118,7 +118,7 @@ itlb_walk_finish:
         itlb_walk_level = 0;
         /* yclin */
         // itlb.insert(fetchrip, threadid);
-        getcore().stlb.insert(fetchrip, __FUNCTION__, coreid);
+        getcore().stlb.insert(fetchrip);
         /* yclin */
         int delay = min(sim_cycle - itlb_miss_init_cycle, (W64)1000);
         thread_stats.dcache.itlb_latency[delay]++;

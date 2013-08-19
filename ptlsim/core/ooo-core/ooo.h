@@ -889,7 +889,92 @@ namespace OOO_CORE_MODEL {
       * is 36 bits.
       */
     
-    struct TLBEntry {
+    template <int tlbid, int size, int ways=4> struct TranslationLookasideBuffer {
+        struct TLBEntry {
+            W64 tag;
+            int counter;
+            TLBEntry* next;
+            void reset() {
+                tag = -1;
+                counter = 0;
+            }
+        };
+        TLBEntry entry[size/ways][ways];
+        TLBEntry *set[size/ways];
+        int threshold;
+
+        TranslationLookasideBuffer() {
+            reset();
+        }
+
+        void reset() {
+            threshold = 2;
+            for (int i=0; i<size/ways; i+=1) {
+                set[i] = &entry[i][0];
+                for (int j=0; j<ways; j+=1) {
+                    entry[i][j].reset();
+                    entry[i][j].next = (j==ways-1 ? &(entry[i][j+1]) : NULL);
+                }
+            }
+        }
+
+        bool probe(W64 addr) {
+            W64 tag = addr/PAGE_SIZE;
+            int index = tag%(size/ways);
+            TLBEntry *last = NULL;
+            TLBEntry *ent = set[index];
+            for (; ent != NULL; last = ent, ent = ent->next) {
+                if (ent->tag == tag) {
+                    if (last != NULL) {
+                        last->next = ent->next;
+                        ent->next = last;
+                        set[index] = ent;
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool insert(W64 addr) {
+            W64 tag = addr/PAGE_SIZE;
+            int index = tag%(size/ways);
+            TLBEntry *last = NULL;
+            TLBEntry *ent = set[index];
+            for (; ent->next != NULL; last = ent, ent = ent->next);
+            ent->reset();
+            ent->tag = tag;
+            if (last != NULL) {
+                last->next = NULL;
+                ent->next = set[index];
+                set[index] = ent;
+            }
+            return true;
+        }
+
+        bool access(W64 addr) {
+            W64 tag = addr/PAGE_SIZE;
+            int index = tag%(size/4);
+            TLBEntry *ent = set[index];
+            for (; ent != NULL; ent = ent->next) {
+                if (ent->tag == tag) {
+                    ent->counter += 1;
+                    if (ent->counter == threshold) {
+                        return true;
+                    }
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        int flush_all() {
+            reset();
+            return size;
+        }
+      };
+    
+    /*struct TLBEntry {
         int counter;
         void reset() {
             counter = 0;
@@ -914,32 +999,32 @@ namespace OOO_CORE_MODEL {
           base_t::reset();
         }
         
-        bool probe(W64 addr, const char* label, int thread) {
+        bool probe(W64 addr) {
           TLBEntry* entry = base_t::probe(addr);
           return (entry != NULL);
         }
         
-        bool access(W64 addr, const char* label, int thread) {
+        bool access(W64 addr) {
           TLBEntry* entry = base_t::probe(addr);
           if (entry != NULL) {
             entry->counter += 1;
             if (entry->counter == threshold) {
-              /* migration ! */
+              // migration
               return true;
             }
           } else {
-            /* may need to check this out, not happend very often */
+            // may need to check this out, not happend very often
           }
           return false;
         }
         
-        bool insert(W64 addr, const char* label, int thread) {
+        bool insert(W64 addr) {
           W64 tag = base_t::tagof(addr);
           W64 oldtag = tag;
           TLBEntry* entry = base_t::select(tag, oldtag);
           if (oldtag != tag) {
             if (oldtag != InvalidTag<W64>::INVALID) {
-              /* eviction */
+              // eviction
             }
             entry->counter = 0;
           }
@@ -950,7 +1035,7 @@ namespace OOO_CORE_MODEL {
           reset();
           return size;
         }
-      };
+      };*/
         
 
     /*template <int tlbid, int size>

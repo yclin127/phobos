@@ -1896,7 +1896,7 @@ bool ReorderBufferEntry::probetlb(LoadStoreQueueEntry& state, Waddr& origaddr, W
     /* First check if its a TLB hit or miss */
     /* yclin */
     // if unlikely (exception != 0 || !thread.dtlb.probe(origaddr, threadid)) {
-    if unlikely (exception != 0 || !getcore().stlb.probe(origaddr, __FUNCTION__, thread.coreid)) {
+    if unlikely (exception != 0 || !getcore().stlb.probe(origaddr)) {
     /* yclin */
 
         if(logable(6)) {
@@ -2043,7 +2043,7 @@ rob_cont:
 
         /* yclin */
         // thread.dtlb.insert(origvirt, threadid);
-        core.stlb.insert(origvirt, __FUNCTION__, thread.coreid);
+        core.stlb.insert(origvirt);
         /* yclin */
         thread.in_tlb_walk = 0;
 
@@ -2388,7 +2388,7 @@ bool OooCore::mem_wakeup(void *arg) {
         W8 coreId = get_coreid();
         W64 virtaddr = request->get_virtual_address();
         W64 physaddr = request->get_physical_address();
-        bool trigger = stlb.access(virtaddr, __FUNCTION__, coreId);
+        bool trigger = stlb.access(virtaddr);
         if (trigger && memoryHierarchy->asym_is_movable(physaddr)) {
             /* lock memory */
             /* 1. send migrate command */

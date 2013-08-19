@@ -41,13 +41,14 @@ static inline void cache_access(const request_t *request, uint64_t icount)
     
     // make sure there's nothing funny going on around here.
     // otherwise, there're probablity something wrong in code marker or memory tracer.
-    assert(!((request->vaddr ^ request->paddr) & 0xfff));
+    assert(!((request->vaddr ^ request->paddr) & ~tlb.tag_mask));
     
     // tlb
     {
         // lru_access don't handle unaligned requests, so make them aligned here.
         target_ulong vaddr = request->vaddr & tlb.tag_mask;
         target_ulong paddr = request->paddr & tlb.tag_mask;
+        target_ulong limit = (request->paddr+request->type.size-1) & tlb.tag_mask;
         
         line = lru_access(&tlb, vaddr);
         tlb_data = (tlb_data_t *)line->data;

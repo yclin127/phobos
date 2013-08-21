@@ -7,8 +7,8 @@ int cache_set_bits  = 12;
 int cache_way_count = (1<<3);
 
 int tlb_page_bits = 12;
-int tlb_set_bits  = 7;
-int tlb_way_count = (1<<3);
+int tlb_set_bits  = 8;
+int tlb_way_count = (1<<2);
 
 #include "tracer/lru_algorithm.h"
 
@@ -35,7 +35,7 @@ static inline void cache_create(void)
 
 static inline void cache_access(const request_t *request, uint64_t icount)
 {
-    line_t *line;
+    line_t *cache_line, *tlb_entry;
     tlb_data_t *tlb_data;
     cache_data_t *cache_data;
     
@@ -48,19 +48,19 @@ static inline void cache_access(const request_t *request, uint64_t icount)
         // lru_access don't handle unaligned requests, so make them aligned here.
         target_ulong vaddr = request->vaddr & tlb.tag_mask;
         target_ulong paddr = request->paddr & tlb.tag_mask;
-        target_ulong limit = (request->paddr+request->type.size-1) & tlb.tag_mask;
+        //target_ulong limit = (request->paddr+request->type.size-1) & tlb.tag_mask;
         
-        line = lru_access(&tlb, vaddr);
-        tlb_data = (tlb_data_t *)line->data;
-        if (unlikely(line->tag != vaddr)) {
-            if (line->tag != -1) {
+        tlb_entry = lru_select(&tlb, vaddr);
+        tlb_data = (tlb_data_t *)tlb_entry->data;
+        if (unlikely(tlb_entry->tag != vaddr)) {
+            if (tlb_entry->tag != -1) {
                 // evict
-                trace_file_log(line->tag, tlb_data->ptag, TRACER_TYPE_TLB_EVICT, icount);
+                trace_file_log(tlb_entry->tag, tlb_data->ptag, TRACER_TYPE_TLB_EVICT, icount);
             }
             // tlb walk
             trace_file_log(vaddr, paddr, request->type.flags | TRACER_TYPE_TLB_WALK, icount);
             // reset entry
-            line->tag = vaddr;
+            tlb_entry->tag = vaddr;
             tlb_data->ptag = paddr;
             tlb_data->lookup_count = 0;
             tlb_data->read_count   = 0;
@@ -74,30 +74,35 @@ static inline void cache_access(const request_t *request, uint64_t icount)
         // lru_access don't handle unaligned requests, so make them aligned here.
         target_ulong vaddr = request->vaddr & cache.tag_mask;
         target_ulong paddr = request->paddr & cache.tag_mask;
-        target_ulong limit = (request->paddr+request->type.size-1) & cache.tag_mask;
+        target_ulong limit = (request->vaddr+request->type.size-1) & cache.tag_mask;
         
         for (;;) {
-            line = lru_access(&cache, paddr);
-            cache_data = (cache_data_t *)line->data;
-            if (unlikely(line->tag != paddr)) {
+            cache_line = lru_select(&cache, paddr);
+            cache_data = (cache_data_t *)cache_line->data;
+            if (unlikely(cache_line->tag != paddr)) {
                 if (cache_data->flags & TRACER_TYPE_WRITE) {
                     // write back
-                    trace_file_log(cache_data->vtag, line->tag, cache_data->flags | 
+                    trace_file_log(cache_data->vtag, cache_line->tag, cache_data->flags | 
                                    TRACER_TYPE_MEM_WRITE, icount);
-                    tlb_data->write_count++;
+                    line_t *wb_tlb_entry = lru_probe(&tlb, cache_data->vtag & tlb.tag_mask);
+                    if (wb_tlb_entry) {
+                        tlb_data_t *wb_tlb_data = (tlb_data_t *)wb_tlb_entry->data;
+                        wb_tlb_data->write_count++;
+                    }
                 }
                 // miss
                 trace_file_log(vaddr, paddr, request->type.flags | TRACER_TYPE_MEM_READ, icount);
                 tlb_data->read_count++;
                 // reset entry
-                line->tag = paddr;
+                cache_line->tag = paddr;
                 cache_data->vtag = vaddr;
                 cache_data->flags = 0;
             }
             cache_data->flags |= request->type.flags;
             
             // chop up requests if they cross cachelines
-            if (likely(paddr == limit)) break;
+            if (likely(vaddr == limit)) break;
+            vaddr += __size(cache.line_bits);
             paddr += __size(cache.line_bits);
         }
     }
@@ -130,8 +135,8 @@ static void *cache_filter_main(void *args)
     const request_t *ifetch_ptr;
     int ifetch_count = 0;
 
-    // this must called before cache_create, 
-    // because it also reads in cache config.
+    // trace_file_init() must be called before cache_create(), 
+    // because it also reads in the cache configuratino.
     trace_file_init();
     
     cache_create();

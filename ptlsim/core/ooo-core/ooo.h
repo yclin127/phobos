@@ -913,7 +913,7 @@ namespace OOO_CORE_MODEL {
                 set[i] = &entry[i][0];
                 for (int j=0; j<ways; j+=1) {
                     entry[i][j].reset();
-                    entry[i][j].next = (j==ways-1 ? &(entry[i][j+1]) : NULL);
+                    entry[i][j].next = (j!=ways-1 ? &(entry[i][j+1]) : NULL);
                 }
             }
         }
@@ -923,15 +923,17 @@ namespace OOO_CORE_MODEL {
             int index = tag%(size/ways);
             TLBEntry *last = NULL;
             TLBEntry *ent = set[index];
-            for (; ent != NULL; last = ent, ent = ent->next) {
+            while (ent != NULL) {
                 if (ent->tag == tag) {
                     if (last != NULL) {
                         last->next = ent->next;
-                        ent->next = last;
+                        ent->next = set[index];
                         set[index] = ent;
                     }
                     return true;
                 }
+                last = ent;
+                ent = ent->next;
             }
             return false;
         }
@@ -941,14 +943,19 @@ namespace OOO_CORE_MODEL {
             int index = tag%(size/ways);
             TLBEntry *last = NULL;
             TLBEntry *ent = set[index];
-            for (; ent->next != NULL; last = ent, ent = ent->next);
-            ent->reset();
-            ent->tag = tag;
+            while (ent->next != NULL) {
+                if (ent->tag == tag)
+                    return true;
+                last = ent;
+                ent = ent->next;
+            }
             if (last != NULL) {
-                last->next = NULL;
+                last->next = ent->next;
                 ent->next = set[index];
                 set[index] = ent;
             }
+            ent->reset();
+            ent->tag = tag;
             return true;
         }
 

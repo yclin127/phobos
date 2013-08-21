@@ -55,7 +55,29 @@ static inline void lru_create(cache_t *cache, int line_bits, int set_bits, int w
     lru_reset(cache);
 }
 
-static inline line_t *lru_access(cache_t *cache, target_ulong tag)
+static inline line_t *lru_probe(cache_t *cache, target_ulong tag)
+{
+    line_t *victim;
+    
+    int index = (tag >> cache->line_bits) & (cache->set_count-1);
+    
+    // fast pass for first-way hit
+    victim = cache->set[index];
+    if (likely(victim->tag == tag)) {
+        return victim;
+    }
+    
+    // look up lru tags
+    while (likely(victim)) {
+        if (likely(victim->tag == tag))
+            return victim;
+        victim = victim->next;
+    }
+    
+    return NULL;
+}
+
+static inline line_t *lru_select(cache_t *cache, target_ulong tag)
 {
     line_t *previous, *victim;
     

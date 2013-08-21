@@ -395,12 +395,14 @@ MemoryControllerHub::~MemoryControllerHub()
 
 bool MemoryControllerHub::is_movable(W64 address)
 {
+    total_tmp0_committed += 1;
     if (dramconfig.asym_mat_ratio == 0)
         return false;
     
     Coordinates coordinates;
     int channel = mapping.channel.value(address);
     controller[channel]->translate(address, coordinates);
+    
     return coordinates.place % dramconfig.asym_mat_ratio != 0;
 }
 
@@ -502,16 +504,15 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
         case MEMORY_OP_READ:
         case MEMORY_OP_WRITE:
             queueEntry->type = COMMAND_read;
+            if (message->request->get_coreSignal2()) {
+                message->request->get_coreSignal2()->emit((void*)message->request);
+            }
             break;
         case MEMORY_OP_MIGRATE:
             queueEntry->type = COMMAND_migrate;
             break;
         default:
             assert(0);
-    }
-
-    if (message->request->get_coreSignal2()) {
-        message->request->get_coreSignal2()->emit((void*)message->request);
     }
     /* yclin */
     

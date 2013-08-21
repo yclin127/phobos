@@ -1896,7 +1896,7 @@ bool ReorderBufferEntry::probetlb(LoadStoreQueueEntry& state, Waddr& origaddr, W
     /* First check if its a TLB hit or miss */
     /* yclin */
     // if unlikely (exception != 0 || !thread.dtlb.probe(origaddr, threadid)) {
-    if unlikely (exception != 0 || !getcore().stlb.probe(origaddr)) {
+    if unlikely (!getcore().stlb.probe(origaddr) || exception != 0) {
     /* yclin */
 
         if(logable(6)) {

@@ -184,7 +184,7 @@ namespace Memory {
 	bool access_cache(MemoryRequest *request);
     bool access_memory(MemoryRequest *request); /* yclin */
     bool asym_is_movable(W64 address); /* yclin */
-    int  asym_next_victim(); /* yclin */
+    int  asym_next_victim(W64 address); /* yclin */
 
     // New Core wakeup function that uses Signal of MemoryRequest
     // if Signal is not setup, it uses old wrapper functions

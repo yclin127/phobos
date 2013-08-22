@@ -127,7 +127,7 @@ class MemoryControllerHub : public Controller
         virtual ~MemoryControllerHub();
         
         bool is_movable(W64 address);
-        int  next_victim();
+        int  next_victim(W64 address);
         
         void register_interconnect(Interconnect *interconnect, int type);
         

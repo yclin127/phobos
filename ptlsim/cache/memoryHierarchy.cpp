@@ -121,12 +121,12 @@ bool MemoryHierarchy::asym_is_movable(W64 address)
     return memController->is_movable(address);
 }
 
-int MemoryHierarchy::asym_next_victim()
+int MemoryHierarchy::asym_next_victim(W64 address)
 {
     MemoryControllerHub *memController = (MemoryControllerHub*)memoryController_;
     assert(memController != NULL);
     
-    return memController->next_victim();
+    return memController->next_victim(address);
 }
 
 /* yclin */

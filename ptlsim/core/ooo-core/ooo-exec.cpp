@@ -2384,28 +2384,34 @@ bool OooCore::mem_wakeup(void *arg) {
 
     Memory::MemoryRequest* request = (Memory::MemoryRequest*)arg;
     
-    if (request->is_mapped()) {
-        W8 coreId = get_coreid();
-        W64 virtaddr = request->get_virtual_address();
-        W64 physaddr = request->get_physical_address();
-        bool trigger = stlb.access(virtaddr);
-        if (trigger && memoryHierarchy->asym_is_movable(physaddr)) {
-            /* lock memory */
-            /* 1. send migrate command */
-            /* 2. update tlb & page table */
-            /* 3. update cache tags or flush them */
-            /* unlock memory */
-            
-            Memory::MemoryRequest *request;
-            int victim = memoryHierarchy->asym_next_victim();
-            
-            request = memoryHierarchy->get_free_request(coreId);
-            request->init(coreId, 0, physaddr, 0, sim_cycle, false, 0, 0, Memory::MEMORY_OP_MIGRATE);
-            request->set_coreSignal(NULL, NULL, victim);
-            memoryHierarchy->access_memory(request);
-        }
-    }
+    if (!request->is_mapped())
+        return true;
     
+    W8 coreId = get_coreid();
+    W64 virtaddr = request->get_virtual_address();
+    W64 physaddr = request->get_physical_address();
+    
+    if (!stlb.access(virtaddr))
+        return true;
+    
+    total_tmp0_committed += 1;
+    
+    if (!memoryHierarchy->asym_is_movable(physaddr))
+        return true;
+    
+    /* lock memory */
+    /* 1. send migrate command */
+    /* 2. update tlb & page table */
+    /* 3. update cache tags or flush them */
+    /* unlock memory */
+    
+    int victim = memoryHierarchy->asym_next_victim(physaddr);
+    
+    request = memoryHierarchy->get_free_request(coreId);
+    request->init(coreId, 0, physaddr, 0, sim_cycle, false, 0, 0, Memory::MEMORY_OP_MIGRATE);
+    request->set_coreSignal(NULL, NULL, victim);
+    memoryHierarchy->access_memory(request);
+
     return true;
 }
 /* yclin */

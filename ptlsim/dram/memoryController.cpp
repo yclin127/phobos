@@ -395,7 +395,6 @@ MemoryControllerHub::~MemoryControllerHub()
 
 bool MemoryControllerHub::is_movable(W64 address)
 {
-    total_tmp0_committed += 1;
     if (dramconfig.asym_mat_ratio == 0)
         return false;
     
@@ -406,15 +405,14 @@ bool MemoryControllerHub::is_movable(W64 address)
     return coordinates.place % dramconfig.asym_mat_ratio != 0;
 }
 
-int  MemoryControllerHub::next_victim()
+int  MemoryControllerHub::next_victim(W64 address)
 {
     int result = victim;
-    victim = mapping.index.clamp(victim+dramconfig.asym_mat_ratio);
+    victim = mapping.index.clamp(victim + dramconfig.asym_mat_ratio);
     return result;
 }
 
-void MemoryControllerHub::register_interconnect(Interconnect *interconnect,
-        int type)
+void MemoryControllerHub::register_interconnect(Interconnect *interconnect, int type)
 {
     switch(type) {
         case INTERCONN_TYPE_UPPER:

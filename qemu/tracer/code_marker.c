@@ -47,22 +47,22 @@ void code_marker_insn_begin(void)
     *gen_opparam_ptr++ = 0;
 }
 
-void code_marker_insn_end(void)
+static void code_marker_insn_interrupt(void)
 {
     if (translating == 0) return;
     
     request_t *request = &(ifetch_table[ifetch_count]);
-    target_ulong fetch_end = request->vaddr + request->type.size;
+    target_ulong end = request->vaddr + request->type.size - 1;
     
     // if this instruction crosses cache lines, there must be a fetch before it
-    if (!break_before) {
-        if (unlikely(__cross(request->vaddr-1, fetch_end-1, cache_line_bits))) {
+    /*if (!break_before) {
+        if (unlikely(__cross(request->vaddr, end, cache_line_bits))) {
             break_before = 1;
         }
     }
     
     // put a new request in ifetch table
-    if (unlikely(break_before)) {
+    if (unlikely(break_before))*/ {
         ifetch_count += 1;
         request += 1;
         assert(ifetch_count < IFETCH_TABLE_SIZE);
@@ -71,7 +71,18 @@ void code_marker_insn_end(void)
     }
     
     // merge it into former request
-    request[-1].type.size = fetch_end - request[-1].vaddr;
+    request[-1].type.size = end - request[-1].vaddr + 1;
+}
+
+void code_marker_insn_end(void)
+{
+    if (translating == 0) return;
+    
+    code_marker_insn_interrupt();
+    
+    request_t *request = &(ifetch_table[ifetch_count]);
+    
+    // merge it into former request
     request[-1].type.count += 1;
 }
 
@@ -85,8 +96,18 @@ void code_marker_access(target_ulong vaddr, target_ulong paddr, uint64_t type)
         request->paddr = paddr;
         request->type.value = type;
     } else {
-        request->type.size = (vaddr + ((type_t)type).size) - request->vaddr;
-        //assert(request->type.size <= 16);
-        assert(request->type.flags == ((type_t)type).flags);
+        target_ulong end = vaddr + ((type_t)type).size - 1;
+        if ((end ^ request->vaddr) & TARGET_PAGE_MASK) {
+            code_marker_insn_interrupt();
+            code_marker_insn_begin();
+            request += 1;
+            request->vaddr = vaddr;
+            request->paddr = paddr;
+            request->type.value = type;
+        } else {
+            request->type.size = end - request->vaddr + 1;
+            //assert(request->type.size <= 16);
+            assert(request->type.flags == ((type_t)type).flags);
+        }
     }
 }

@@ -48,7 +48,7 @@ static inline void cache_access(const request_t *request, uint64_t icount)
         // lru_access don't handle unaligned requests, so make them aligned here.
         target_ulong vaddr = request->vaddr & tlb.tag_mask;
         target_ulong paddr = request->paddr & tlb.tag_mask;
-        //target_ulong limit = (request->paddr+request->type.size-1) & tlb.tag_mask;
+        //target_ulong end = (request->paddr+request->type.size-1) & tlb.tag_mask;
         
         tlb_entry = lru_select(&tlb, vaddr);
         tlb_data = (tlb_data_t *)tlb_entry->data;
@@ -74,7 +74,7 @@ static inline void cache_access(const request_t *request, uint64_t icount)
         // lru_access don't handle unaligned requests, so make them aligned here.
         target_ulong vaddr = request->vaddr & cache.tag_mask;
         target_ulong paddr = request->paddr & cache.tag_mask;
-        target_ulong limit = (request->vaddr+request->type.size-1) & cache.tag_mask;
+        target_ulong end = (request->vaddr+request->type.size-1) & cache.tag_mask;
         
         for (;;) {
             cache_line = lru_select(&cache, paddr);
@@ -101,7 +101,7 @@ static inline void cache_access(const request_t *request, uint64_t icount)
             cache_data->flags |= request->type.flags;
             
             // chop up requests if they cross cachelines
-            if (likely(vaddr == limit)) break;
+            if (likely(vaddr == end)) break;
             vaddr += __size(cache.line_bits);
             paddr += __size(cache.line_bits);
         }

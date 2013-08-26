@@ -889,7 +889,7 @@ namespace OOO_CORE_MODEL {
       * is 36 bits.
       */
     
-    template <int tlbid, int size, int ways=4> struct TranslationLookasideBuffer {
+    /*template <int tlbid, int size, int ways=4> struct TranslationLookasideBuffer {
         struct TLBEntry {
             W64 tag;
             int counter;
@@ -908,7 +908,7 @@ namespace OOO_CORE_MODEL {
         }
 
         void reset() {
-            threshold = 2;
+            threshold = 4;
             for (int i=0; i<size/ways; i+=1) {
                 set[i] = &entry[i][0];
                 for (int j=0; j<ways; j+=1) {
@@ -979,9 +979,9 @@ namespace OOO_CORE_MODEL {
             reset();
             return size;
         }
-      };
+    };*/
     
-    /*struct TLBEntry {
+    struct TLBEntry {
         int counter;
         void reset() {
             counter = 0;
@@ -999,7 +999,7 @@ namespace OOO_CORE_MODEL {
         int threshold;
         
         TranslationLookasideBuffer() {
-            threshold = 8;
+            threshold = 4;
         }
 
         void reset() {
@@ -1042,8 +1042,8 @@ namespace OOO_CORE_MODEL {
           reset();
           return size;
         }
-      };*/
-        
+    };
+      
 
     /*template <int tlbid, int size>
       struct TranslationLookasideBuffer2: public FullyAssociativeTagsNbitOneHot<size, 40> {

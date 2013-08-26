@@ -36,14 +36,14 @@ MemoryController::MemoryController(Config &config, AddressMapping &mapping, Poli
         rank.demandCount = 0;
         rank.activeCount = 0;
         rank.refreshTime = refresh_step*(coordinates.rank+1);
-        rank.is_sleeping = false;        
+        rank.is_sleeping = false;
         
         for (coordinates.bank=0; coordinates.bank<bankcount; ++coordinates.bank) {
             // initialize bank
             BankData &bank = channel->getBankData(coordinates);
             bank.demandCount = 0;
             bank.rowBuffer = -1;
-            bank.remapping.init(groupcount, indexcount);
+            bank.remapping.init(groupcount, indexcount, asym_mat_ratio);
         }
     }
 }
@@ -66,10 +66,6 @@ void MemoryController::translate(W64 address, Coordinates &coordinates)
     
     coordinates.group   = mapping.group.value(address);
     coordinates.index   = mapping.index.value(address);
-    
-    /* Address remapping for row migrations. */
-    BankData &bank = channel->getBankData(coordinates);
-    coordinates.place = bank.remapping.map(coordinates.group, coordinates.index);
 }
 
 bool MemoryController::addTransaction(long clock, RequestEntry *request)
@@ -88,6 +84,10 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     Coordinates &coordinates = queueEntry->coordinates;
     
     translate(address, coordinates);
+    
+    RankData &rank = channel->getRankData(coordinates);
+    BankData &bank = channel->getBankData(coordinates);
+    
     if (request->request->get_type() == MEMORY_OP_MIGRATE) {
         coordinates.column = 0;
         coordinates.offset = request->request->get_virtual_address();
@@ -95,13 +95,10 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
         total_migs_committed += 1;
     } else {
         total_accs_committed += 1;
-        if (asym_mat_ratio > 0 && coordinates.place % asym_mat_ratio == 0) {
+        if (bank.remapping.cached(coordinates)) {
             total_caps_committed += 1;
         }
     }
-    
-    RankData &rank = channel->getRankData(coordinates);
-    BankData &bank = channel->getBankData(coordinates);
     
     rank.demandCount += 1;
     bank.demandCount += 1;
@@ -243,7 +240,7 @@ void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
             
             // Migrate
             if (asym_mat_ratio > 0 && transaction->request->type == COMMAND_migrate) {
-                bank.remapping.swap(coordinates->group, coordinates->place, coordinates->offset);
+                bank.remapping.swap(coordinates->group, coordinates->index, coordinates->offset);
             }
             
             pendingTransactions_.free(transaction);
@@ -353,10 +350,10 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         int shift = 0;
         mapping.offset.shift  = shift; shift +=
         mapping.offset.width  = log_2(dramconfig.offsetcount);
-        mapping.channel.shift = shift; shift +=
-        mapping.channel.width = log_2(dramconfig.channelcount);
         mapping.column.shift  = shift; shift +=
         mapping.column.width  = log_2(dramconfig.columncount);
+        mapping.channel.shift = shift; shift +=
+        mapping.channel.width = log_2(dramconfig.channelcount);
         mapping.bank.shift    = shift; shift +=
         mapping.bank.width    = log_2(dramconfig.bankcount);
         mapping.rank.shift    = shift; shift +=
@@ -401,8 +398,9 @@ bool MemoryControllerHub::is_movable(W64 address)
     Coordinates coordinates;
     int channel = mapping.channel.value(address);
     controller[channel]->translate(address, coordinates);
+    BankData &bank = controller[channel]->channel->getBankData(coordinates);
     
-    return coordinates.place % dramconfig.asym_mat_ratio != 0;
+    return !bank.remapping.cached(coordinates);
 }
 
 int  MemoryControllerHub::next_victim(W64 address)

@@ -18,6 +18,23 @@ enum CommandType {
     COMMAND_powerup,
     COMMAND_powerdown,
 };
+    
+inline std::ostream &operator <<(std::ostream &os, CommandType type) {
+    static const char* name[] = {
+        "COMMAND_activate",
+        "COMMAND_precharge",
+        "COMMAND_read",
+        "COMMAND_write",
+        "COMMAND_read_precharge",
+        "COMMAND_write_precharge",
+        "COMMAND_refresh",
+        "COMMAND_migrate",
+        "COMMAND_powerup",
+        "COMMAND_powerdown",
+    };
+    os << name[type];
+    return os;
+}
 
 struct Coordinates {
     int channel;
@@ -29,9 +46,8 @@ struct Coordinates {
     
     int group;
     int index;
-    int place;
     
-    friend std::ostream &operator <<(std::ostream &os, Coordinates &coordinates) {
+    friend inline std::ostream &operator <<(std::ostream &os, Coordinates &coordinates) {
         os << "{"
            << "channel: " << (int)coordinates.channel 
            << ", rank: " << (int)coordinates.rank 
@@ -41,7 +57,6 @@ struct Coordinates {
            << ", offset: " << (int)coordinates.offset
            << ", group: " << (int)coordinates.group
            << ", index: " << (int)coordinates.index
-           << ", place: " << (int)coordinates.place
            << "}";
         return os;
     }
@@ -87,10 +102,12 @@ struct AddressMapping {
 };
 
 struct AddressRemapping {
+    int step;
     int **forward;
     int **backward;
     
-    void init(int groups, int indices) {
+    void init(int groups, int indices, int ratio) {
+        step = ratio;
         forward = new int*[groups];
         backward = new int*[groups];
         for (int i=0; i<groups; i+=1) {
@@ -103,26 +120,23 @@ struct AddressRemapping {
         }
     }
     
-    int map(int group, int index) {
-        return forward[group][index];
+    bool cached(Coordinates &coordinates) {
+        return forward[coordinates.group][coordinates.index] % step == 0;
     }
     
-    int unmap(int group, int index) {
-        return backward[group][index];
-    }
-    
-    void swap(int group, int index1, int index2) {
-        int temp1 = backward[group][index1];
-        int temp2 = backward[group][index2];
-        backward[group][index1] = temp2;
-        backward[group][index2] = temp1;
+    void swap(int group, int index, int victim) {
+        int temp1 = forward[group][index];
+        int temp2 = forward[group][victim];
         
-        int temp = forward[group][temp1];
-        forward[group][temp1] = forward[group][temp2];
-        forward[group][temp2] = temp;
+        forward[group][index] = temp2;
+        forward[group][victim] = temp1;
         
-        assert(backward[group][forward[group][index1]] == index1);
-        assert(backward[group][forward[group][index2]] == index2);
+        int temp = backward[group][temp1];
+        backward[group][temp1] = backward[group][temp2];
+        backward[group][temp2] = temp;
+        
+        assert(backward[group][forward[group][index]] == index);
+        assert(backward[group][forward[group][victim]] == victim);
     }
 };
 

@@ -18,19 +18,19 @@ static int backend[2];
 
 static void trace_file_flush(void)
 {
-    if (batch.tail != batch.head) {
+    /*if (batch.tail != batch.head) {
         int size = batch.tail-batch.head;
     
         safe_write(backend[1], &size, sizeof(size));
         safe_write(backend[1], batch.head, size);
         
         batch.tail = batch.head;
-    }
+    }*/
 }
 
 void trace_file_init(void)
 {
-    batch.head = qemu_malloc(BATCH_SIZE);
+    /*batch.head = qemu_malloc(BATCH_SIZE);
     
     int pipe_in[2]; // to backend
     int pipe_out[2]; // from backend
@@ -78,30 +78,30 @@ void trace_file_init(void)
             safe_read(backend[0], &tlb_set_bits, sizeof(int));
             safe_read(backend[0], &tlb_way_count, sizeof(int));
             break;
-    }
+    }*/
 }
 
 void trace_file_begin(void)
 {
-    batch.tail = batch.head;
+    /*batch.tail = batch.head;
     
     int command = 0;
-    safe_write(backend[1], &command, sizeof(command));
+    safe_write(backend[1], &command, sizeof(command));*/
 }
 
 void trace_file_end(void)
 {
-    if (batch.tail != batch.head) {
+    /*if (batch.tail != batch.head) {
         trace_file_flush();
     }
     
     int command = -1;
-    safe_write(backend[1], &command, sizeof(command));
+    safe_write(backend[1], &command, sizeof(command));*/
 }
 
 void trace_file_log(target_ulong vaddr, target_ulong paddr, uint64_t flags, uint64_t icount)
 {
-    log_t *log = (log_t*)batch.tail;
+    /*log_t *log = (log_t*)batch.tail;
     batch.tail += sizeof(log_t);
     
     log->vaddr = vaddr;
@@ -111,5 +111,5 @@ void trace_file_log(target_ulong vaddr, target_ulong paddr, uint64_t flags, uint
     
     if (batch.tail-batch.head > PACKAGE_SIZE-sizeof(log_t)) {
         trace_file_flush();
-    }
+    }*/
 }

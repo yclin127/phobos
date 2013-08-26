@@ -108,6 +108,8 @@ struct AddressRemapping {
     
     void init(int groups, int indices, int ratio) {
         step = ratio;
+        forward = NULL;
+        backward = NULL;
         forward = new int*[groups];
         backward = new int*[groups];
         for (int i=0; i<groups; i+=1) {
@@ -121,7 +123,7 @@ struct AddressRemapping {
     }
     
     bool cached(Coordinates &coordinates) {
-        return forward[coordinates.group][coordinates.index] % step == 0;
+        return step > 0 && forward[coordinates.group][coordinates.index] % step == 0;
     }
     
     void swap(int group, int index, int victim) {

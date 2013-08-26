@@ -3,7 +3,7 @@
 #include "tracer/cache_filter.h"
 #include "tracer/sync_queue.h"
 
-static int memory_tracer_enabled = 1;
+static int memory_tracer_enabled = 0;
 static batch_t *batch = NULL;
 
 void memory_tracer_init(void)

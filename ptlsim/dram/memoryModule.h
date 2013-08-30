@@ -159,7 +159,7 @@ struct Config {
         fast_bank_timing.act_to_mig = tRCDf; /** */
         fast_bank_timing.read_to_mig = tAL+tBL+std::max(tRTP, tCCD)-tCCD; /** */
         fast_bank_timing.write_to_mig = tAL+tCWL+tBL+tWRf; /** */
-        fast_bank_timing.mig_latency = tRAS+tRP; /** */
+        fast_bank_timing.mig_latency = (tRAS+tRP)*2; /** */
         
         slow_bank_timing.act_to_read = tRCD-tAL;
         slow_bank_timing.act_to_write = tRCD-tAL;
@@ -173,7 +173,7 @@ struct Config {
         slow_bank_timing.act_to_mig = tRCD; /** */
         slow_bank_timing.read_to_mig = tAL+tBL+std::max(tRTP, tCCD)-tCCD; /** */
         slow_bank_timing.write_to_mig = tAL+tCWL+tBL+tWR; /** */
-        slow_bank_timing.mig_latency = tRAS+tRP; /** */
+        slow_bank_timing.mig_latency = (tRAS+tRP)*2; /** */
     }
 };
 

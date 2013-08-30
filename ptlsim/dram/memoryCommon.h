@@ -49,14 +49,14 @@ struct Coordinates {
     
     friend inline std::ostream &operator <<(std::ostream &os, Coordinates &coordinates) {
         os << "{"
-           << "channel: " << (int)coordinates.channel 
-           << ", rank: " << (int)coordinates.rank 
-           << ", bank: " << (int)coordinates.bank 
-           << ", row: " << (int)coordinates.row 
-           << ", column: " << (int)coordinates.column
-           << ", offset: " << (int)coordinates.offset
-           << ", group: " << (int)coordinates.group
-           << ", index: " << (int)coordinates.index
+           << "channel: " << coordinates.channel 
+           << ", rank: " << coordinates.rank 
+           << ", bank: " << coordinates.bank 
+           << ", row: " << coordinates.row 
+           << ", column: " << coordinates.column
+           << ", offset: " << coordinates.offset
+           << ", group: " << coordinates.group
+           << ", index: " << coordinates.index
            << "}";
         return os;
     }
@@ -80,6 +80,14 @@ struct BitField {
     
     long mask(long address) {
         return address & (((1 << width) - 1) << shift);
+    }
+    
+    friend inline std::ostream &operator <<(std::ostream &os, BitField &bitfield) {
+        os << "{"
+           << "shift: " << bitfield.shift 
+           << ", width: " << bitfield.width 
+           << "}";
+        return os;
     }
 };
 

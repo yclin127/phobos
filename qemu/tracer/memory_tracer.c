@@ -3,17 +3,11 @@
 #include "tracer/cache_filter.h"
 #include "tracer/sync_queue.h"
 
-static int memory_tracer_enabled = 1;
+static int memory_tracer_enabled = 0;
 static batch_t *batch = NULL;
 
 void memory_tracer_init(void)
 {
-    sync_queue_init();
-    cache_filter_init();
-    
-    batch = sync_queue_get(0);
-    batch->tail = batch->head;
-    
     if (memory_tracer_enabled) {
         memory_tracer_enabled = 0;
         memory_tracer_toggle();
@@ -33,6 +27,13 @@ static batch_t *memory_tracer_next_batch(void)
 
 void memory_tracer_toggle(void)
 {
+    if (batch == NULL) {
+        sync_queue_init();
+        cache_filter_init();
+        
+        batch = sync_queue_get(0);
+        batch->tail = batch->head;
+    }
     if (!memory_tracer_enabled) {
         // begin a new trace by a batch beginning with a NULL-pointer iblock
         request_t *request = (request_t *)batch->tail;

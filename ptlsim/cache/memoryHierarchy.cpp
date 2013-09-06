@@ -129,6 +129,14 @@ int MemoryHierarchy::asym_next_victim(W64 address)
     return memController->next_victim(address);
 }
 
+int MemoryHierarchy::asym_get_threshold()
+{
+    MemoryControllerHub *memController = (MemoryControllerHub*)memoryController_;
+    assert(memController != NULL);
+    
+    return memController->get_threshold();
+}
+
 /* yclin */
 
 void MemoryHierarchy::clock()

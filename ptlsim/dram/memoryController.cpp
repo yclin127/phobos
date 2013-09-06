@@ -316,6 +316,8 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     memoryHierarchy_->add_mem_controller(this);
     
     int asym_mat_group, asym_mat_ratio;
+    int asym_mat_ap_factor, asym_mat_rw_factor;
+    int asym_threshold;
     
     {
         BaseMachine &machine = memoryHierarchy_->get_machine();
@@ -325,6 +327,9 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         option(policy.max_row_idle, "max_row_idle", 0);
         option(asym_mat_group, "asym_mat_group", 1);
         option(asym_mat_ratio, "asym_mat_ratio", 0);
+        option(asym_mat_ap_factor, "asym_mat_ap_factor", 0);
+        option(asym_mat_rw_factor, "asym_mat_rw_factor", 0);
+        option(asym_threshold, "asym_threshold", 4);
 #undef option
     }
     
@@ -339,6 +344,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         
         dramconfig.asym_mat_group = asym_mat_group;
         dramconfig.asym_mat_ratio = asym_mat_ratio;
+        dramconfig.cache_setup(asym_mat_ap_factor, asym_mat_rw_factor);
     }
     
     {
@@ -379,6 +385,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     SET_SIGNAL_CB(name, "_Wait_Interconnect", waitInterconnect_,
             &MemoryControllerHub::wait_interconnect_cb);
     
+    threshold = asym_threshold;
     victim = 0;
 }
 
@@ -403,11 +410,16 @@ bool MemoryControllerHub::is_movable(W64 address)
     return !bank.remapping.cached(coordinates);
 }
 
-int  MemoryControllerHub::next_victim(W64 address)
+int MemoryControllerHub::next_victim(W64 address)
 {
     int result = victim;
     victim = mapping.index.clamp(victim + dramconfig.asym_mat_ratio);
     return result;
+}
+
+int MemoryControllerHub::get_threshold()
+{
+    return threshold;
 }
 
 void MemoryControllerHub::register_interconnect(Interconnect *interconnect, int type)

@@ -120,6 +120,7 @@ class MemoryControllerHub : public Controller
         long clock_num, clock_den;
         long clock_rem, clock_mem;
         
+	int threshold;
         int victim;
 
     public:
@@ -128,6 +129,7 @@ class MemoryControllerHub : public Controller
         
         bool is_movable(W64 address);
         int  next_victim(W64 address);
+        int  get_threshold();
         
         void register_interconnect(Interconnect *interconnect, int type);
         

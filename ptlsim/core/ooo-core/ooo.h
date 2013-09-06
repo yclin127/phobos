@@ -901,14 +901,12 @@ namespace OOO_CORE_MODEL {
         };
         TLBEntry entry[size/ways][ways];
         TLBEntry *set[size/ways];
-        int threshold;
 
         TranslationLookasideBuffer() {
             reset();
         }
 
         void reset() {
-            threshold = 4;
             for (int i=0; i<size/ways; i+=1) {
                 set[i] = &entry[i][0];
                 for (int j=0; j<ways; j+=1) {
@@ -959,7 +957,7 @@ namespace OOO_CORE_MODEL {
             return true;
         }
 
-        bool access(W64 addr) {
+        bool access(W64 addr, int threshold) {
             W64 tag = addr/PAGE_SIZE;
             int index = tag%(size/4);
             TLBEntry *ent = set[index];

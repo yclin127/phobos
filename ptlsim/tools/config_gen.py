@@ -753,9 +753,8 @@ def generate_memory_logic(config, options):
                 cfg["params"]["COLUMN"], cfg["params"]["SIZE"]))
             of.write("\t/*float tCK*/%g, /*int tCMD*/%d,\n" %
                 (cfg["params"]["tCK"], cfg["params"]["tCMD"]))
-            of.write("\t/*int tCL*/%d, /*int tCWL*/%d, /*int tAL*/%d, /*int tBL*/%d,\n" %
-                (cfg["params"]["tCL"], cfg["params"]["tCWL"], 
-                cfg["params"]["tAL"], cfg["params"]["tBL"]))
+            of.write("\t/*int tCL*/%d, /*int tCWL*/%d, /*int tBL*/%d,\n" %
+                (cfg["params"]["tCL"], cfg["params"]["tCWL"], cfg["params"]["tBL"]))
             of.write("\t/*int tRAS*/%d, /*int tRCD*/%d, /*int tRP*/%d,\n" %
                 (cfg["params"]["tRAS"], cfg["params"]["tRCD"], cfg["params"]["tRP"]))
             of.write("\t/*int tRRD*/%d, /*int tCCD*/%d, /*int tFAW*/%d,\n" %

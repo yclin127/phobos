@@ -98,7 +98,7 @@ struct Config {
     Config(
       int DEVICE, int BANK, int COLUMN, int SIZE, 
       float tCK, int tCMD, 
-      int tCL, int tCWL, int tAL, int tBL, 
+      int tCL, int tCWL, int tBL, 
       int tRAS, int tRCD, int tRP, 
       int tRRD, int tCCD, int tFAW, 
       int tRTP, int tWTR, int tWR, int tRTRS, 
@@ -142,38 +142,35 @@ struct Config {
         rank_timing.powerdown_latency = tCKE;
         rank_timing.powerup_latency = tXP;
         
-        int tRCDf = tRCD/2;
-        int tRASf = tRAS/2;
-        int tRPf = tRP/2;
-        int tWRf = tWR/2;
+        slow_bank_timing.act_to_read   = tRCD;
+        slow_bank_timing.act_to_write  = tRCD;
+        slow_bank_timing.act_to_pre    = tRAS;
+        slow_bank_timing.read_to_pre   = tBL+std::max(tRTP, tCCD)-tCCD;
+        slow_bank_timing.write_to_pre  = tCWL+tBL+tWR;
+        slow_bank_timing.pre_to_act    = tRP;
+        slow_bank_timing.read_latency  = tCL;
+        slow_bank_timing.write_latency = tCWL;
         
-        fast_bank_timing.act_to_read = tRCDf-tAL; /** */
-        fast_bank_timing.act_to_write = tRCDf-tAL; /** */
-        fast_bank_timing.act_to_pre = tRASf; /** */
-        fast_bank_timing.read_to_pre = tAL+tBL+std::max(tRTP, tCCD)-tCCD; /* */
-        fast_bank_timing.write_to_pre = tAL+tCWL+tBL+tWRf; /* */
-        fast_bank_timing.pre_to_act = tRPf; /** */
-        fast_bank_timing.read_latency = tAL+tCL;
-        fast_bank_timing.write_latency = tAL+tCWL;
-        
-        fast_bank_timing.act_to_mig = tRCDf; /** */
-        fast_bank_timing.read_to_mig = tAL+tBL+std::max(tRTP, tCCD)-tCCD; /** */
-        fast_bank_timing.write_to_mig = tAL+tCWL+tBL+tWRf; /** */
-        fast_bank_timing.mig_latency = (tRAS+tRP)*2; /** */
-        
-        slow_bank_timing.act_to_read = tRCD-tAL;
-        slow_bank_timing.act_to_write = tRCD-tAL;
-        slow_bank_timing.act_to_pre = tRAS;
-        slow_bank_timing.read_to_pre = tAL+tBL+std::max(tRTP, tCCD)-tCCD;
-        slow_bank_timing.write_to_pre = tAL+tCWL+tBL+tWR;
-        slow_bank_timing.pre_to_act = tRP;
-        slow_bank_timing.read_latency = tAL+tCL;
-        slow_bank_timing.write_latency = tAL+tCWL;
-        
-        slow_bank_timing.act_to_mig = tRCD; /** */
-        slow_bank_timing.read_to_mig = tAL+tBL+std::max(tRTP, tCCD)-tCCD; /** */
-        slow_bank_timing.write_to_mig = tAL+tCWL+tBL+tWR; /** */
-        slow_bank_timing.mig_latency = (tRAS+tRP)*2; /** */
+        slow_bank_timing.act_to_mig    = slow_bank_timing.act_to_pre;
+        slow_bank_timing.read_to_mig   = slow_bank_timing.read_to_pre;
+        slow_bank_timing.write_to_mig  = slow_bank_timing.write_to_pre;
+        slow_bank_timing.mig_latency   = (tRAS+tRP)*2; /** */
+
+        fast_bank_timing = slow_bank_timing;
+    }
+
+    void cache_setup(int rA, int rRW) {
+        if (rA > 0) {
+            fast_bank_timing.act_to_read   -= slow_bank_timing.act_to_read   / rA;
+            fast_bank_timing.act_to_write  -= slow_bank_timing.act_to_write  / rA;
+            fast_bank_timing.act_to_pre    -= slow_bank_timing.act_to_pre    / rA;
+            fast_bank_timing.write_to_pre  -= slow_bank_timing.write_latency / rA;
+            fast_bank_timing.pre_to_act    -= slow_bank_timing.pre_to_act    / rA;
+        }
+        if (rRW > 0) {
+            fast_bank_timing.read_latency  -= slow_bank_timing.read_latency  / rRW;
+            fast_bank_timing.write_latency -= slow_bank_timing.write_latency / rRW;
+        }
     }
 };
 

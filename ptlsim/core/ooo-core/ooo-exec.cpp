@@ -2391,7 +2391,7 @@ bool OooCore::mem_wakeup(void *arg) {
     W64 virtaddr = request->get_virtual_address();
     W64 physaddr = request->get_physical_address();
     
-    if (!stlb.access(virtaddr))
+    if (!stlb.access(virtaddr, memoryHierarchy->asym_get_threshold()))
         return true;
     
     total_tmp0_committed += 1;

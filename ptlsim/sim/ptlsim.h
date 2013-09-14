@@ -173,10 +173,6 @@ extern W64 total_insns_committed;
 extern W64 total_migs_committed; /* yclin */
 extern W64 total_caps_committed; /* yclin */
 extern W64 total_accs_committed; /* yclin */
-extern W64 total_tmp0_committed; /* yclin */
-extern W64 total_tmp1_committed; /* yclin */
-extern W64 total_tmp2_committed; /* yclin */
-extern W64 total_tmp3_committed; /* yclin */
 extern W64 total_basic_blocks_committed;
 
 // #define TRACE_RIP

@@ -19,7 +19,7 @@ enum CommandType {
     COMMAND_powerdown,
 };
     
-inline std::ostream &operator <<(std::ostream &os, CommandType type) {
+inline const char* toString(CommandType type) {
     static const char* name[] = {
         "COMMAND_activate",
         "COMMAND_precharge",
@@ -32,7 +32,11 @@ inline std::ostream &operator <<(std::ostream &os, CommandType type) {
         "COMMAND_powerup",
         "COMMAND_powerdown",
     };
-    os << name[type];
+    return name[type];
+}
+    
+inline std::ostream &operator <<(std::ostream &os, CommandType type) {
+    os << toString(type);
     return os;
 }
 
@@ -136,17 +140,16 @@ struct AddressRemapping {
     
     void swap(int group, int index, int victim) {
         int temp1 = forward[group][index];
-        int temp2 = forward[group][victim];
+        int temp2 = backward[group][victim];
         
-        forward[group][index] = temp2;
-        forward[group][victim] = temp1;
+        forward[group][index] = victim;
+        forward[group][temp2] = temp1;
         
-        int temp = backward[group][temp1];
-        backward[group][temp1] = backward[group][temp2];
-        backward[group][temp2] = temp;
+        backward[group][temp1] = temp2;
+        backward[group][victim] = index;
         
         assert(backward[group][forward[group][index]] == index);
-        assert(backward[group][forward[group][victim]] == victim);
+        assert(forward[group][backward[group][victim]] == victim);
     }
 };
 

@@ -2394,8 +2394,6 @@ bool OooCore::mem_wakeup(void *arg) {
     if (!stlb.access(virtaddr, memoryHierarchy->asym_get_threshold()))
         return true;
     
-    total_tmp0_committed += 1;
-    
     if (!memoryHierarchy->asym_is_movable(physaddr))
         return true;
     

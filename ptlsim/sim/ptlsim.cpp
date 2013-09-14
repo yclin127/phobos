@@ -61,10 +61,6 @@ W64 total_insns_committed = 0;
 W64 total_migs_committed = 0; /* yclin */
 W64 total_caps_committed = 0; /* yclin */
 W64 total_accs_committed = 0; /* yclin */
-W64 total_tmp0_committed = 0; /* yclin */
-W64 total_tmp1_committed = 0; /* yclin */
-W64 total_tmp2_committed = 0; /* yclin */
-W64 total_tmp3_committed = 0; /* yclin */
 W64 total_basic_blocks_committed = 0;
 
 W64 last_printed_status_at_ticks;
@@ -1456,11 +1452,7 @@ extern "C" void update_progress() {
       << intstring(total_accs_committed, 9) << " accesses, " 
       << intstring(total_caps_committed, 9) << " captures, " 
       << intstring(total_migs_committed, 7) << " migrations, "
-      << intstring(total_tmp0_committed, 9) << " " 
-      << intstring(total_tmp1_committed, 9) << " " 
-      << intstring(total_tmp2_committed, 7) << " " 
-      << intstring(total_tmp3_committed, 7) << ", " 
-      << intstring(total_insns_committed, 13) << " commits: " 
+      << intstring(total_insns_committed, 9) << " commits: " 
       << intstring((W64)cycles_per_sec, 9) << " Hz, " 
       << intstring((W64)insns_per_sec, 9) << " insns/sec";
 

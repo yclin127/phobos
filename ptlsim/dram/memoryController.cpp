@@ -105,6 +105,10 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     if (coordinates.row == bank.rowBuffer) {
         bank.supplyCount += 1;
     }
+
+    if (asym_mat_ratio > 0 && request->type == COMMAND_migrate) {
+        bank.remapping.swap(coordinates.group, coordinates.index, coordinates.offset);
+    }
     
     return true;
 }
@@ -237,11 +241,6 @@ void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
             bank.demandCount -= 1;
             bank.supplyCount -= 1;
             bank.hitCount += 1;
-            
-            // Migrate
-            if (asym_mat_ratio > 0 && transaction->request->type == COMMAND_migrate) {
-                bank.remapping.swap(coordinates->group, coordinates->index, coordinates->offset);
-            }
             
             pendingTransactions_.free(transaction);
         }

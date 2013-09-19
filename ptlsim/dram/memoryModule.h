@@ -105,7 +105,7 @@ struct Config {
       int tRFC, int tREFI,
       int tCKE, int tXP
     ) {
-        ranksize = SIZE<<20;
+        ranksize = (long)SIZE<<20;
         
         assert(ranksize%BANK == 0);
         devicecount = DEVICE;

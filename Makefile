@@ -1,4 +1,4 @@
 all: 
-	scons
+	scons c=4
 clean:
 	scons -c

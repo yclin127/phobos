@@ -2383,19 +2383,27 @@ void ReorderBufferEntry::loadwakeup() {
 bool OooCore::mem_wakeup(void *arg) {
 
     Memory::MemoryRequest* request = (Memory::MemoryRequest*)arg;
-    
-    if (!request->is_mapped())
-        return true;
+    ThreadContext &thread = *threads[request->get_threadid()];
+
+    thread.thread_stats.commit.accesses++;
     
     W8 coreId = get_coreid();
     W64 virtaddr = request->get_virtual_address();
     W64 physaddr = request->get_physical_address();
     
-    if (!stlb.access(virtaddr, memoryHierarchy->asym_get_threshold()))
+    if (!memoryHierarchy->asym_is_movable(physaddr)) {
+        thread.thread_stats.commit.captures++;
+        return true;
+    }
+    
+    if (!request->is_mapped())
         return true;
     
-    if (!memoryHierarchy->asym_is_movable(physaddr))
+    if (!stlb.access(virtaddr, memoryHierarchy->asym_get_threshold())) {
         return true;
+    }
+
+    thread.thread_stats.commit.migrations++;
     
     /* lock memory */
     /* 1. send migrate command */

@@ -130,6 +130,16 @@ ThreadContext::ThreadContext(OooCore& core_, W8 threadid_, Context& ctx_)
 
     thread_stats.commit.ipc.add_elem(&thread_stats.commit.insns);
     thread_stats.commit.ipc.add_elem(&core_.core_stats.cycles);
+/* yclin */
+    thread_stats.commit.api.add_elem(&thread_stats.commit.accesses);
+    thread_stats.commit.api.add_elem(&thread_stats.commit.insns);
+
+    thread_stats.commit.cpa.add_elem(&thread_stats.commit.captures);
+    thread_stats.commit.cpa.add_elem(&thread_stats.commit.accesses);
+
+    thread_stats.commit.mpi.add_elem(&thread_stats.commit.migrations);
+    thread_stats.commit.mpi.add_elem(&thread_stats.commit.insns);
+/* yclin */
     /* thread_stats.commit.ipc.enable_periodic_dump(); */
 
     thread_stats.set_default_stats(user_stats);

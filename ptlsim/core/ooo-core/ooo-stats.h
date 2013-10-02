@@ -222,6 +222,14 @@ namespace OOO_CORE_MODEL {
             StatObj<W64> insns;
             StatEquation<W64, double, StatObjFormulaDiv> uipc;
             StatEquation<W64, double, StatObjFormulaDiv> ipc;
+#if 1 /* yclin */
+            StatObj<W64> accesses;
+            StatObj<W64> captures;
+            StatObj<W64> migrations;
+            StatEquation<W64, double, StatObjFormulaDiv> api;
+            StatEquation<W64, double, StatObjFormulaDiv> cpa;
+            StatEquation<W64, double, StatObjFormulaDiv> mpi;
+#endif
 
             struct result : public Statable
             {
@@ -305,12 +313,25 @@ namespace OOO_CORE_MODEL {
                   , insns("insns", this)
                   , uipc("uipc", this)
                   , ipc("ipc", this)
+#if 1 /* yclin */
+                  , accesses("acc", this)
+                  , captures("cap", this)
+                  , migrations("mig", this)
+                  , api("api", this)
+                  , cpa("cpa", this)
+                  , mpi("mpi", this)
+#endif
                   , result(this)
                   , fail(this)
                   , setflags(this)
                   , opclass("opclass", this, opclass_names)
             {
                 ipc.enable_summary();
+#if 1 /* yclin */
+                api.enable_summary();
+                cpa.enable_summary();
+                mpi.enable_summary();
+#endif
             }
         } commit;
 

@@ -159,17 +159,17 @@ struct Config {
         fast_bank_timing = slow_bank_timing;
     }
 
-    void cache_setup(int rA, int rRW) {
-        if (rA > 0) {
-            fast_bank_timing.act_to_read   -= slow_bank_timing.act_to_read   / rA;
-            fast_bank_timing.act_to_write  -= slow_bank_timing.act_to_write  / rA;
-            fast_bank_timing.act_to_pre    -= slow_bank_timing.act_to_pre    / rA;
-            fast_bank_timing.write_to_pre  -= slow_bank_timing.write_latency / rA;
-            fast_bank_timing.pre_to_act    -= slow_bank_timing.pre_to_act    / rA;
+    void cache_setup(int row_ratio, int col_ratio) {
+        if (row_ratio > 0) {
+            fast_bank_timing.act_to_read   -= slow_bank_timing.act_to_read   / row_ratio;
+            fast_bank_timing.act_to_write  -= slow_bank_timing.act_to_write  / row_ratio;
+            fast_bank_timing.act_to_pre    -= slow_bank_timing.act_to_pre    / row_ratio;
+            fast_bank_timing.write_to_pre  -= slow_bank_timing.write_latency / row_ratio;
+            fast_bank_timing.pre_to_act    -= slow_bank_timing.pre_to_act    / row_ratio;
         }
-        if (rRW > 0) {
-            fast_bank_timing.read_latency  -= slow_bank_timing.read_latency  / rRW;
-            fast_bank_timing.write_latency -= slow_bank_timing.write_latency / rRW;
+        if (col_ratio > 0) {
+            fast_bank_timing.read_latency  -= slow_bank_timing.read_latency  / col_ratio;
+            fast_bank_timing.write_latency -= slow_bank_timing.write_latency / col_ratio;
         }
     }
 };

@@ -315,7 +315,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     memoryHierarchy_->add_mem_controller(this);
     
     int asym_mat_group, asym_mat_ratio;
-    int asym_mat_ap_factor, asym_mat_rw_factor;
+    int asym_mat_row_speedup, asym_mat_col_speedup;
     int asym_threshold;
     
     {
@@ -326,8 +326,8 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         option(policy.max_row_idle, "max_row_idle", 0);
         option(asym_mat_group, "asym_mat_group", 1);
         option(asym_mat_ratio, "asym_mat_ratio", 0);
-        option(asym_mat_ap_factor, "asym_mat_ap_factor", 0);
-        option(asym_mat_rw_factor, "asym_mat_rw_factor", 0);
+        option(asym_mat_row_speedup, "asym_mat_row_speedup", 0);
+        option(asym_mat_col_speedup, "asym_mat_col_speedup", 0);
         option(asym_threshold, "asym_threshold", 4);
 #undef option
     }
@@ -343,7 +343,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         
         dramconfig.asym_mat_group = asym_mat_group;
         dramconfig.asym_mat_ratio = asym_mat_ratio;
-        dramconfig.cache_setup(asym_mat_ap_factor, asym_mat_rw_factor);
+        dramconfig.cache_setup(asym_mat_row_speedup, asym_mat_col_speedup);
     }
     
     {

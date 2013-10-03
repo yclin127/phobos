@@ -1758,7 +1758,7 @@ int ReorderBufferEntry::issueload(LoadStoreQueueEntry& state, Waddr& origaddr, W
 
     request->init(core.get_coreid(), threadid, state.physaddr << 3, idx, sim_cycle,
             false, uop.rip.rip, uop.uuid, Memory::MEMORY_OP_READ);
-    request->set_coreSignal(&core.dcache_signal, &core.mem_signal, state.virtaddr);
+    request->set_coreSignal(&core.dcache_signal);
 
     bool L1hit = core.memoryHierarchy->access_cache(request);
 
@@ -2071,8 +2071,7 @@ rob_cont:
 
     request->init(core.get_coreid(), threadid, pteaddr, idx, sim_cycle,
             false, uop.rip.rip, uop.uuid, Memory::MEMORY_OP_READ);
-    request->set_coreSignal(&core.dcache_signal, &core.mem_signal, -1); /* yclin */
-    request->set_mapped(false); /* yclin */
+    request->set_coreSignal(&core.dcache_signal);
 
     lsq->physaddr = pteaddr >> 3;
 
@@ -2378,49 +2377,6 @@ void ReorderBufferEntry::loadwakeup() {
 
     }
 }
-
-/* yclin */
-bool OooCore::mem_wakeup(void *arg) {
-
-    Memory::MemoryRequest* request = (Memory::MemoryRequest*)arg;
-    ThreadContext &thread = *threads[request->get_threadid()];
-
-    thread.thread_stats.commit.accesses++;
-    
-    W8 coreId = get_coreid();
-    W64 virtaddr = request->get_virtual_address();
-    W64 physaddr = request->get_physical_address();
-    
-    if (!memoryHierarchy->asym_is_movable(physaddr)) {
-        thread.thread_stats.commit.captures++;
-        return true;
-    }
-    
-    if (!request->is_mapped())
-        return true;
-    
-    if (!stlb.access(virtaddr, memoryHierarchy->asym_get_threshold())) {
-        return true;
-    }
-
-    thread.thread_stats.commit.migrations++;
-    
-    /* lock memory */
-    /* 1. send migrate command */
-    /* 2. update tlb & page table */
-    /* 3. update cache tags or flush them */
-    /* unlock memory */
-    
-    int victim = memoryHierarchy->asym_next_victim(physaddr);
-    
-    request = memoryHierarchy->get_free_request(coreId);
-    request->init(coreId, 0, physaddr, 0, sim_cycle, false, 0, 0, Memory::MEMORY_OP_MIGRATE);
-    request->set_coreSignal(NULL, NULL, victim);
-    memoryHierarchy->access_memory(request);
-
-    return true;
-}
-/* yclin */
 
 /**
  * @brief Wakeup Memory-fence Entry

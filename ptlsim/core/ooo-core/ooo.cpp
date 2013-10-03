@@ -277,12 +277,6 @@ OooCore::OooCore(BaseMachine& machine_, W8 num_threads,
     icache_signal.connect(signal_mem_ptr(*this,
                 &OooCore::icache_wakeup));
 
-    sig_name.reset();
-    sig_name << core_name << "-mem-wakeup";
-    mem_signal.set_name(sig_name.buf);
-    mem_signal.connect(signal_mem_ptr(*this,
-                &OooCore::mem_wakeup));
-
 	sig_name.reset();
 	sig_name << core_name << "-run-cycle";
 	run_cycle.set_name(sig_name.buf);

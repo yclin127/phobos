@@ -62,7 +62,6 @@ void MemoryRequest::init(W8 coreId,
 	refCounter_ = 0; // or maybe 1
 	opType_ = opType;
 	isData_ = !isInstruction;
-    isMapped_ = true; /* yclin */
 
 	if(history) delete history;
 	history = new stringbuf();
@@ -82,8 +81,6 @@ void MemoryRequest::init(MemoryRequest *request)
 	refCounter_ = 0; // or maybe 1
 	opType_ = request->opType_;
 	isData_ = request->isData_;
-    isMapped_ = request->isMapped_; /* yclin */
-    virtualAddress_ = request->virtualAddress_; /* yclin */
 
 	if(history) delete history;
 	history = new stringbuf();

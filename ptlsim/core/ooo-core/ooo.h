@@ -889,7 +889,7 @@ namespace OOO_CORE_MODEL {
       * is 36 bits.
       */
     
-    template <int tlbid, int size, int ways=4> struct TranslationLookasideBuffer {
+    /*template <int tlbid, int size, int ways=4> struct TranslationLookasideBuffer {
         struct TLBEntry {
             W64 tag;
             int counter;
@@ -977,9 +977,9 @@ namespace OOO_CORE_MODEL {
             reset();
             return size;
         }
-    };
+    };*/
     
-    /*struct TLBEntry {
+    struct TLBEntry {
         int counter;
         void reset() {
             counter = 0;
@@ -994,10 +994,7 @@ namespace OOO_CORE_MODEL {
       struct TranslationLookasideBuffer: public AssociativeArray<W64, TLBEntry, size/4, 4, PAGE_SIZE> {
         typedef AssociativeArray<W64, TLBEntry, size/4, 4, PAGE_SIZE> base_t;
         
-        int threshold;
-        
         TranslationLookasideBuffer() {
-            threshold = 4;
         }
 
         void reset() {
@@ -1009,7 +1006,7 @@ namespace OOO_CORE_MODEL {
           return (entry != NULL);
         }
         
-        bool access(W64 addr) {
+        bool access(W64 addr, int threshold) {
           TLBEntry* entry = base_t::probe(addr);
           if (entry != NULL) {
             entry->counter += 1;
@@ -1040,7 +1037,7 @@ namespace OOO_CORE_MODEL {
           reset();
           return size;
         }
-    };*/
+    };
       
 
     /*template <int tlbid, int size>
@@ -1429,23 +1426,21 @@ namespace OOO_CORE_MODEL {
         void flush_tlb(Context& ctx);
         void flush_tlb_virt(Context& ctx, Waddr virtaddr);
 
-		/* Cache Signals and Callbacks */
+        /* Cache Signals and Callbacks */
         Signal dcache_signal;
         Signal icache_signal;
-        Signal mem_signal; /* yclin */
-		Signal run_cycle;
+        Signal run_cycle;
 
         bool dcache_wakeup(void *arg);
         bool icache_wakeup(void *arg);
-        bool mem_wakeup(void *arg); /* yclin */
 
-		/* Debugging */
+        /* Debugging */
         void dump_state(ostream& os);
         void print_smt_state(ostream& os);
         void check_refcounts();
         void check_rob();
 
-		/* Stats */
+        /* Stats */
         OooCoreStats core_stats;
 
         void update_stats();

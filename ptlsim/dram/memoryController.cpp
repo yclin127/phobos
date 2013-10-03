@@ -88,10 +88,12 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     RankData &rank = channel->getRankData(coordinates);
     BankData &bank = channel->getBankData(coordinates);
     
-    if (request->request->get_type() == MEMORY_OP_MIGRATE) {
+    /**if (request->request->get_type() == MEMORY_OP_MIGRATE) {
         coordinates.column = 0;
         coordinates.offset = request->request->get_virtual_address();
-        
+    }*/
+    
+    if (request->request->get_type() == MEMORY_OP_MIGRATE) {
         total_migs_committed += 1;
     } else {
         total_accs_committed += 1;
@@ -511,9 +513,6 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
         case MEMORY_OP_READ:
         case MEMORY_OP_WRITE:
             queueEntry->type = COMMAND_read;
-            if (message->request->get_coreSignal2()) {
-                message->request->get_coreSignal2()->emit((void*)message->request);
-            }
             break;
         case MEMORY_OP_MIGRATE:
             queueEntry->type = COMMAND_migrate;

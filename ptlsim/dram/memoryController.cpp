@@ -117,6 +117,17 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
         return false;
     }
 
+    switch (request->request->get_type()) {
+        case MEMORY_OP_UPDATE:
+            queueEntry->type = COMMAND_write;
+            break;
+        case MEMORY_OP_READ:
+        case MEMORY_OP_WRITE:
+            queueEntry->type = COMMAND_read;
+            break;
+        default:
+            assert(0);
+    }
     queueEntry->request = request;
     
     W64 address = request->request->get_physical_address();
@@ -135,6 +146,32 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     rank.demandCount += 1;
     bank.demandCount += 1;
     if (coordinates.row == bank.rowBuffer) {
+        bank.supplyCount += 1;
+    }
+    
+    return true;
+}
+
+bool MemoryController::addMigration(long clock, Coordinates *coordinates)
+{
+    TransactionEntry *queueEntry = pendingTransactions_.alloc();
+
+    /* if queue is full return false to indicate failure */
+    if(queueEntry == NULL) {
+        //memdebug("Transaction queue is full\n");
+        return false;
+    }
+
+    queueEntry->type = COMMAND_migrate;
+    queueEntry->coordinates = *coordinates;
+    queueEntry->request = NULL;
+    
+    RankData &rank = channel->getRankData(*coordinates);
+    BankData &bank = channel->getBankData(*coordinates);
+    
+    rank.demandCount += 1;
+    bank.demandCount += 1;
+    if (coordinates->row == bank.rowBuffer) {
         bank.supplyCount += 1;
     }
     
@@ -173,11 +210,24 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
     /** Request to Transaction */
     
     {
+        // waiting migration transaction
+        Coordinates coordinates;
+        if (mapping.migrate(coordinates)) {
+            addMigration(clock, &coordinates);
+        }
+    }
+    {
         RequestEntry *request;
         foreach_list_mutable(pendingRequests_.list(), request, entry, nextentry) {
             if (!request->issued) {
                 if (!addTransaction(clock, request)) break; // in-order
                 request->issued = true;
+                
+                // immediate migration transaction
+                Coordinates coordinates;
+                if (mapping.migrate(coordinates)) {
+                    if (!addMigration(clock, &coordinates)) break;
+                }
             }
         }
     }
@@ -264,7 +314,7 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
             // Read / Write / Migrate
             assert(bank.rowBuffer == coordinates->row);
             assert(bank.supplyCount > 0);
-            if (!addCommand(clock, transaction->request->type, coordinates, transaction->request)) continue;
+            if (!addCommand(clock, transaction->type, coordinates, transaction->request)) continue;
             rank.demandCount -= 1;
             bank.demandCount -= 1;
             bank.supplyCount -= 1;
@@ -321,7 +371,6 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
                 case COMMAND_read_precharge:
                 case COMMAND_write:
                 case COMMAND_write_precharge:
-                case COMMAND_migrate:
                     marss_add_event(&accessCompleted_, command->finishTime-clock, command->request);
                     break;
                     
@@ -401,6 +450,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
 
 MemoryControllerHub::~MemoryControllerHub()
 {
+    delete mapping;
     for (int channel=0; channel<channelcount; ++channel) {
         delete controller[channel];
     }
@@ -488,18 +538,6 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
 
     queueEntry->request->incRefCounter();
     ADD_HISTORY_ADD(queueEntry->request);
-    
-    switch (message->request->get_type()) {
-        case MEMORY_OP_UPDATE:
-            queueEntry->type = COMMAND_write;
-            break;
-        case MEMORY_OP_READ:
-        case MEMORY_OP_WRITE:
-            queueEntry->type = COMMAND_read;
-            break;
-        default:
-            assert(0);
-    }
     
     return true;
 }

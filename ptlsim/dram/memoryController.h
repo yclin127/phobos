@@ -22,7 +22,6 @@ struct RequestEntry : public FixStateListObject
 {
     MemoryRequest *request;
     Controller *source;
-    CommandType type;
     bool annuled;
     bool issued;
 
@@ -46,8 +45,9 @@ struct RequestEntry : public FixStateListObject
 
 struct TransactionEntry : public FixStateListObject
 {
-    RequestEntry *request;  
+    CommandType type; 
     Coordinates coordinates;
+    RequestEntry *request;
 
     void init() {
         request = NULL;
@@ -122,6 +122,7 @@ class MemoryController
         FixStateList<CommandEntry, MEM_CMD_NUM> pendingCommands_;
         
         bool addTransaction(long clock, RequestEntry *request);
+        bool addMigration(long clock, Coordinates *coordinates);
         bool addCommand(long clock, CommandType type, Coordinates *coordinates, RequestEntry *request);
         
         void schedule(long clock, Signal &accessCompleted_);

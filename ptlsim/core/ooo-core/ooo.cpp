@@ -110,6 +110,10 @@ static void init_luts() {
     globals_initialized = true;
 }
 
+#if 1 /* yclin */
+STLB ThreadContext::stlb = STLB();
+#endif
+
 ThreadContext::ThreadContext(OooCore& core_, W8 threadid_, Context& ctx_)
     : core(core_), threadid(threadid_), ctx(ctx_)
       , thread_stats("thread", &core_)
@@ -130,7 +134,9 @@ ThreadContext::ThreadContext(OooCore& core_, W8 threadid_, Context& ctx_)
 
     thread_stats.commit.ipc.add_elem(&thread_stats.commit.insns);
     thread_stats.commit.ipc.add_elem(&core_.core_stats.cycles);
-/* yclin */
+    /* thread_stats.commit.ipc.enable_periodic_dump(); */
+
+#if 1 /* yclin */
     thread_stats.commit.api.add_elem(&thread_stats.commit.accesses);
     thread_stats.commit.api.add_elem(&thread_stats.commit.insns);
 
@@ -139,8 +145,7 @@ ThreadContext::ThreadContext(OooCore& core_, W8 threadid_, Context& ctx_)
 
     thread_stats.commit.mpi.add_elem(&thread_stats.commit.migrations);
     thread_stats.commit.mpi.add_elem(&thread_stats.commit.insns);
-/* yclin */
-    /* thread_stats.commit.ipc.enable_periodic_dump(); */
+#endif
 
     thread_stats.set_default_stats(user_stats);
     reset();
@@ -194,7 +199,8 @@ void ThreadContext::reset() {
 }
 
 void ThreadContext::setupTLB() {
-    /* yclin *//*foreach(i, CPU_TLB_SIZE) {
+#if 0 /* yclin */
+    foreach(i, CPU_TLB_SIZE) {
         W64 dtlb_addr = ctx.tlb_table[!ctx.kernel_mode][i].addr_read;
         W64 itlb_addr = ctx.tlb_table[!ctx.kernel_mode][i].addr_code;
         if(dtlb_addr != (W64)-1) {
@@ -203,7 +209,8 @@ void ThreadContext::setupTLB() {
         if(itlb_addr != (W64)-1) {
             itlb.insert(itlb_addr);
         }
-    }*/
+    }
+#endif
 }
 
 /**
@@ -237,8 +244,6 @@ void ThreadContext::init() {
     reset();
     coreid = core.get_coreid();
 }
-
-STLB OooCore::stlb = STLB();
 
 OooCore::OooCore(BaseMachine& machine_, W8 num_threads,
         const char* name)
@@ -1161,10 +1166,10 @@ void ThreadContext::dump_smt_state(ostream& os) {
     print_rename_tables(os);
     print_rob(os);
     print_lsq(os);
-    /* yclin */
-    //os << "ITLB: \n", itlb, endl;
-    //os << "DTLB: \n", dtlb, endl;
-    /* yclin */
+#if 0 /* yclin */
+    os << "ITLB: \n", itlb, endl;
+    os << "DTLB: \n", dtlb, endl;
+#endif
     os << flush;
 }
 
@@ -1571,13 +1576,14 @@ ostream& OOO_CORE_MODEL::operator <<(ostream& os, const PhysicalRegisterOperandI
 }
 
 void OooCore::flush_tlb(Context& ctx) {
-    /* yclin */
-    /*foreach(i, threadcount) {
+#if 1 /* yclin */
+    ThreadContext::stlb.flush_all();
+#else
+    foreach(i, threadcount) {
         threads[i]->dtlb.flush_all();
         threads[i]->itlb.flush_all();
-    }*/
-    stlb.flush_all();
-    /* yclin */
+    }
+#endif
 }
 
 void OooCore::flush_tlb_virt(Context& ctx, Waddr virtaddr) {
@@ -1637,9 +1643,12 @@ void OooCore::dump_configuration(YAML::Emitter &out) const
 			threadcount);
 	YAML_KEY_VAL(out, "fetch_q_size", FETCH_QUEUE_SIZE);
 	YAML_KEY_VAL(out, "frontend_stages", FRONTEND_STAGES);
-	YAML_KEY_VAL(out, "itlb_size", ITLB_SIZE);
-    YAML_KEY_VAL(out, "dtlb_size", DTLB_SIZE);
+#if 1 /* yclin */
     YAML_KEY_VAL(out, "stlb_size", STLB_SIZE);
+#else
+	YAML_KEY_VAL(out, "itlb_size", ITLB_SIZE);
+	YAML_KEY_VAL(out, "dtlb_size", DTLB_SIZE);
+#endif
 
 	YAML_KEY_VAL(out, "total_FUs", (ALU_FU_COUNT + FPU_FU_COUNT +
 				LOAD_FU_COUNT + STORE_FU_COUNT));

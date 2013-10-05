@@ -25,8 +25,8 @@
  *
  */
 
-#ifndef MEMORY_CONTROLLER_CONST_H
-#define MEMORY_CONTROLLER_CONST_H
+#ifndef MEMORY_CONTROLLER_SIMPLE_H
+#define MEMORY_CONTROLLER_SIMPLE_H
 
 #include <controller.h>
 #include <interconnect.h>
@@ -63,7 +63,7 @@ struct MemoryQueueEntry : public FixStateListObject
 	}
 };
 
-class MemoryControllerConst : public Controller
+class MemoryControllerSimple : public Controller
 {
 	private:
 		Interconnect *cacheInterconnect_;
@@ -82,7 +82,7 @@ class MemoryControllerConst : public Controller
         RAMStats new_stats;
 
 	public:
-		MemoryControllerConst(W8 coreid, const char *name,
+		MemoryControllerSimple(W8 coreid, const char *name,
 				 MemoryHierarchy *memoryHierarchy);
 		virtual bool handle_interconnect_cb(void *arg);
 		void print(ostream& os) const;
@@ -112,4 +112,4 @@ class MemoryControllerConst : public Controller
 
 };
 
-#endif //MEMORY_CONTROLLER_CONST_H
+#endif //MEMORY_CONTROLLER_SIMPLE_H

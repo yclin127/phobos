@@ -96,7 +96,7 @@ DirectoryController::DirectoryController(W8 idx, const char *name,
     : Controller(idx, name, memoryHierarchy)
       , dir_(Directory::get_directory())
 {
-    memoryHierarchy_->add_mem_controller(this);
+    memoryHierarchy_->add_cache_mem_controller(this);
 
     req_handlers[MEMORY_OP_READ]   = &DirectoryController::
         handle_read_miss;

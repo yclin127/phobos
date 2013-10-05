@@ -70,6 +70,81 @@ struct CommandEntry : public FixStateListObject
 
 
 
+class Detector
+{
+    private:
+        struct Entry {
+            W64 tag;
+            int count;
+            Entry* next;
+        };
+        
+        int set_count, way_count;
+        Entry *entries;
+        Entry **sets;
+
+    public:
+        Detector() {
+            entries = NULL;
+            sets = NULL;
+        }
+        
+        virtual ~Detector() {
+            free();
+        }
+        
+        void allocate(int nset, int nway) {
+            set_count = nset;
+            way_count = nway;
+            entries = new Entry[set_count*way_count];
+            sets    = new Entry*[set_count];
+            
+            for (int i=0; i<set_count; i+=1) {
+                sets[i] = &entries[i*way_count];
+                for (int j=0; j<set_count; j+=1) {
+                    sets[i][j].tag = -1;
+                    sets[i][j].count = 0;
+                    sets[i][j].next = &sets[i][j+1];
+                }
+                sets[i][set_count-1].next = NULL;
+            }
+        }
+        
+        void free() {
+            if (entries) {
+                delete [] entries;
+                entries = NULL;
+            }
+            if (sets) {
+                delete [] sets;
+                sets = NULL;
+            }
+        }
+
+        int lookup(W64 tag) {
+            int index = tag % set_count;
+            Entry *last = NULL;
+            Entry *current = sets[index];
+            while (current->tag != tag && current->next) {
+                last = current;
+                current = current->next;
+            }
+            if (last != NULL) {
+                last->next = current->next;
+                current->next = sets[index];
+                sets[index] = current;
+            }
+            if (current->tag != tag) {
+                current->tag = tag;
+                current->count = 0;
+            }
+            current->count += 1;
+            return current->count;
+        }
+};
+
+
+
 class MemoryController
 {
     private:
@@ -112,7 +187,7 @@ class MemoryControllerHub : public Controller
         
         AddressMapping mapping;
         Policy policy;
-    
+        
         Config dramconfig;
         int channelcount;
         
@@ -120,9 +195,10 @@ class MemoryControllerHub : public Controller
         long clock_num, clock_den;
         long clock_rem, clock_mem;
         
-	int threshold;
+        Detector detector;
+        int threshold;
         int victim;
-
+        
     public:
         MemoryControllerHub(W8 coreid, const char *name, MemoryHierarchy *memoryHierarchy, int type);
         virtual ~MemoryControllerHub();
@@ -138,15 +214,15 @@ class MemoryControllerHub : public Controller
         bool wait_interconnect_cb(void *arg);
         
         void clock();
-
+        
         void annul_request(MemoryRequest *request);
         void dump_configuration(YAML::Emitter &out) const;
-
+        
         int get_no_pending_request(W8 coreid);
         bool is_full(bool fromInterconnect = false) const {
             return false; // check
         }
-
+        
         void print(ostream& os) const;
         void print_map(ostream& os)
         {

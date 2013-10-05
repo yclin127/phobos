@@ -1894,10 +1894,11 @@ bool ReorderBufferEntry::probetlb(LoadStoreQueueEntry& state, Waddr& origaddr, W
 
 #ifndef DISABLE_TLB
     /* First check if its a TLB hit or miss */
-    /* yclin */
-    // if unlikely (exception != 0 || !thread.dtlb.probe(origaddr, threadid)) {
-    if unlikely (!getcore().stlb.probe(origaddr) || exception != 0) {
-    /* yclin */
+#if 1 /* yclin */
+    if unlikely (!thread.stlb.probe(origaddr) || exception != 0) {
+#else
+    if unlikely (exception != 0 || !thread.dtlb.probe(origaddr, threadid)) {
+#endif
 
         if(logable(6)) {
             ptl_logfile << "dtlb miss origaddr: ", (void*)origaddr, endl;
@@ -2041,10 +2042,11 @@ rob_cont:
             assert(exception == 0);
         }
 
-        /* yclin */
-        // thread.dtlb.insert(origvirt, threadid);
-        core.stlb.insert(origvirt);
-        /* yclin */
+#if 1 /* yclin */
+        thread.stlb.insert(origvirt);
+#else
+        thread.dtlb.insert(origvirt, threadid);
+#endif
         thread.in_tlb_walk = 0;
 
         if(logable(10)) {

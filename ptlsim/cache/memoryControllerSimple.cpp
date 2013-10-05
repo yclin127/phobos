@@ -33,19 +33,19 @@
 #include <ptlhwdef.h>
 #endif
 
-#include <memoryControllerConst.h>
+#include <memoryControllerSimple.h>
 #include <memoryHierarchy.h>
 
 #include <machine.h>
 
 using namespace Memory;
 
-MemoryControllerConst::MemoryControllerConst(W8 coreid, const char *name,
+MemoryControllerSimple::MemoryControllerSimple(W8 coreid, const char *name,
 		MemoryHierarchy *memoryHierarchy) :
 	Controller(coreid, name, memoryHierarchy)
     , new_stats(name, &memoryHierarchy->get_machine())
 {
-    memoryHierarchy_->add_mem_controller(this);
+    memoryHierarchy_->add_cache_mem_controller(this, true);
 
     if(!memoryHierarchy_->get_machine().get_option(name, "latency", latency_)) {
         latency_ = 50;
@@ -55,10 +55,10 @@ MemoryControllerConst::MemoryControllerConst(W8 coreid, const char *name,
     latency_ = ns_to_simcycles(latency_);
 
     SET_SIGNAL_CB(name, "_Access_Completed", accessCompleted_,
-            &MemoryControllerConst::access_completed_cb);
+            &MemoryControllerSimple::access_completed_cb);
 
     SET_SIGNAL_CB(name, "_Wait_Interconnect", waitInterconnect_,
-            &MemoryControllerConst::wait_interconnect_cb);
+            &MemoryControllerSimple::wait_interconnect_cb);
 
 	bankBits_ = log2(MEM_BANKS);
 
@@ -77,12 +77,12 @@ MemoryControllerConst::MemoryControllerConst(W8 coreid, const char *name,
  * @return: bank id of input address
  *
  */
-int MemoryControllerConst::get_bank_id(W64 addr)
+int MemoryControllerSimple::get_bank_id(W64 addr)
 {
     return lowbits(addr >> 6, bankBits_);
 }
 
-void MemoryControllerConst::register_interconnect(Interconnect *interconnect,
+void MemoryControllerSimple::register_interconnect(Interconnect *interconnect,
         int type)
 {
     switch(type) {
@@ -94,7 +94,7 @@ void MemoryControllerConst::register_interconnect(Interconnect *interconnect,
     }
 }
 
-bool MemoryControllerConst::handle_interconnect_cb(void *arg)
+bool MemoryControllerSimple::handle_interconnect_cb(void *arg)
 {
 	Message *message = (Message*)arg;
 
@@ -178,7 +178,7 @@ bool MemoryControllerConst::handle_interconnect_cb(void *arg)
 	return true;
 }
 
-void MemoryControllerConst::print(ostream& os) const
+void MemoryControllerSimple::print(ostream& os) const
 {
 	os << "---Memory-Controller: ", get_name(), endl;
 	if(pendingRequests_.count() > 0)
@@ -187,7 +187,7 @@ void MemoryControllerConst::print(ostream& os) const
 	os << "---End Memory-Controller: ", get_name(), endl;
 }
 
-bool MemoryControllerConst::access_completed_cb(void *arg)
+bool MemoryControllerSimple::access_completed_cb(void *arg)
 {
     MemoryQueueEntry *queueEntry = (MemoryQueueEntry*)arg;
 
@@ -246,7 +246,7 @@ bool MemoryControllerConst::access_completed_cb(void *arg)
     return true;
 }
 
-bool MemoryControllerConst::wait_interconnect_cb(void *arg)
+bool MemoryControllerSimple::wait_interconnect_cb(void *arg)
 {
 	MemoryQueueEntry *queueEntry = (MemoryQueueEntry*)arg;
 
@@ -288,7 +288,7 @@ bool MemoryControllerConst::wait_interconnect_cb(void *arg)
 	return true;
 }
 
-void MemoryControllerConst::annul_request(MemoryRequest *request)
+void MemoryControllerSimple::annul_request(MemoryRequest *request)
 {
     MemoryQueueEntry *queueEntry;
     foreach_list_mutable(pendingRequests_.list(), queueEntry,
@@ -304,7 +304,7 @@ void MemoryControllerConst::annul_request(MemoryRequest *request)
     }
 }
 
-int MemoryControllerConst::get_no_pending_request(W8 coreid)
+int MemoryControllerSimple::get_no_pending_request(W8 coreid)
 {
 	int count = 0;
 	MemoryQueueEntry *queueEntry;
@@ -321,7 +321,7 @@ int MemoryControllerConst::get_no_pending_request(W8 coreid)
  *
  * @param out YAML Object
  */
-void MemoryControllerConst::dump_configuration(YAML::Emitter &out) const
+void MemoryControllerSimple::dump_configuration(YAML::Emitter &out) const
 {
 	out << YAML::Key << get_name() << YAML::Value << YAML::BeginMap;
 
@@ -336,16 +336,16 @@ void MemoryControllerConst::dump_configuration(YAML::Emitter &out) const
 }
 
 /* Memory Controller Builder */
-struct MemoryControllerConstBuilder : public ControllerBuilder
+struct MemoryControllerSimpleBuilder : public ControllerBuilder
 {
-    MemoryControllerConstBuilder(const char* name) :
+    MemoryControllerSimpleBuilder(const char* name) :
         ControllerBuilder(name)
     {}
 
     Controller* get_new_controller(W8 coreid, W8 type,
             MemoryHierarchy& mem, const char *name) {
-        return new MemoryControllerConst(coreid, name, &mem);
+        return new MemoryControllerSimple(coreid, name, &mem);
     }
 };
 
-MemoryControllerConstBuilder memControllerConstBuilder("simple_dram_cont");
+MemoryControllerSimpleBuilder memControllerBuilder("simple_dram_module");

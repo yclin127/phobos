@@ -58,9 +58,11 @@ W64 iterations = 0;
 W64 total_uops_executed = 0;
 W64 total_uops_committed = 0;
 W64 total_insns_committed = 0;
-W64 total_migs_committed = 0; /* yclin */
-W64 total_caps_committed = 0; /* yclin */
-W64 total_accs_committed = 0; /* yclin */
+#if 1 /* yclin */
+W64 total_migs_committed = 0;
+W64 total_caps_committed = 0;
+W64 total_accs_committed = 0;
+#endif
 W64 total_basic_blocks_committed = 0;
 
 W64 last_printed_status_at_ticks;
@@ -1447,6 +1449,7 @@ extern "C" void update_progress() {
     double insns_per_sec = (total_insns_committed - last_printed_status_at_insn) / seconds;
 
     stringbuf sb;
+#if 1 /* yclin */
     sb << "Completed " 
       << intstring(sim_cycle, 11) << " cycles, " 
       << intstring(total_accs_committed, 9) << " accesses, " 
@@ -1455,6 +1458,10 @@ extern "C" void update_progress() {
       << intstring(total_insns_committed, 9) << " commits: " 
       << intstring((W64)cycles_per_sec, 9) << " Hz, " 
       << intstring((W64)insns_per_sec, 9) << " insns/sec";
+#else
+    sb << "Completed " << intstring(sim_cycle, 13) << " cycles, " << intstring(total_insns_committed, 13) << " commits: " <<
+      intstring((W64)cycles_per_sec, 9) << " Hz, " << intstring((W64)insns_per_sec, 9) << " insns/sec";
+#endif
 
     sb << ": rip";
     foreach (i, contextcount) {

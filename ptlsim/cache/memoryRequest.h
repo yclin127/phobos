@@ -38,9 +38,8 @@ namespace Memory {
 enum OP_TYPE {
 	MEMORY_OP_READ,   /* Indicates cache miss on a read/load operation */
 	MEMORY_OP_WRITE,  /* Indicates cache miss on a write/store operation */
-    MEMORY_OP_UPDATE, /* Indicates cache write-back request */
+	MEMORY_OP_UPDATE, /* Indicates cache write-back request */
 	MEMORY_OP_EVICT,  /* Indicates cache evict request */
-    MEMORY_OP_MIGRATE, /* yclin */
 	NUM_MEMORY_OP
 };
 
@@ -48,8 +47,7 @@ static const char* memory_op_names[NUM_MEMORY_OP] = {
 	"memory_op_read",
 	"memory_op_write",
 	"memory_op_update",
-	"memory_op_evict",
-	"memory_op_migrate"
+	"memory_op_evict"
 };
 
 class MemoryRequest: public selfqueuelink
@@ -172,7 +170,7 @@ class MemoryRequest: public selfqueuelink
 	private:
 		W8 coreId_;
 		W8 threadId_;
-        W64 physicalAddress_;
+		W64 physicalAddress_;
 		bool isData_;
 		int robId_;
 		W64 cycles_;

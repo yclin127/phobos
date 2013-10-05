@@ -93,13 +93,9 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
         coordinates.offset = request->request->get_virtual_address();
     }*/
     
-    if (request->request->get_type() == MEMORY_OP_MIGRATE) {
-        total_migs_committed += 1;
-    } else {
-        total_accs_committed += 1;
-        if (bank.remapping.cached(coordinates)) {
-            total_caps_committed += 1;
-        }
+    total_accs_committed += 1;
+    if (bank.remapping.cached(coordinates)) {
+        total_caps_committed += 1;
     }
     
     rank.demandCount += 1;
@@ -158,8 +154,8 @@ void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
     
     /** Transaction to Command */
     
+    // Refresh policy
     {
-        // Refresh policy
         Coordinates coordinates = {0};
         for (coordinates.rank = 0; coordinates.rank < rankcount; ++coordinates.rank) {
             RankData &rank = channel->getRankData(coordinates);
@@ -314,7 +310,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         MemoryHierarchy *memoryHierarchy, int type) :
     Controller(coreid, name, memoryHierarchy)
 {
-    memoryHierarchy_->add_mem_controller(this);
+    memoryHierarchy_->add_cache_mem_controller(this, true);
     
     int asym_mat_group, asym_mat_ratio;
     int asym_mat_row_speedup, asym_mat_col_speedup;
@@ -373,6 +369,10 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         mapping.group.width   = log_2(dramconfig.groupcount);
         mapping.index.shift   = shift; shift +=
         mapping.index.width   = log_2(dramconfig.indexcount);
+    
+        detector.allocate(1024, 4);
+        threshold = asym_threshold;
+        victim = 0;
     }
     
     controller = new MemoryController*[channelcount];
@@ -385,9 +385,6 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     
     SET_SIGNAL_CB(name, "_Wait_Interconnect", waitInterconnect_,
             &MemoryControllerHub::wait_interconnect_cb);
-    
-    threshold = asym_threshold;
-    victim = 0;
 }
 
 MemoryControllerHub::~MemoryControllerHub()
@@ -409,18 +406,6 @@ bool MemoryControllerHub::is_movable(W64 address)
     BankData &bank = controller[channel]->channel->getBankData(coordinates);
     
     return !bank.remapping.cached(coordinates);
-}
-
-int MemoryControllerHub::next_victim(W64 address)
-{
-    int result = victim;
-    victim = mapping.index.clamp(victim + dramconfig.asym_mat_ratio);
-    return result;
-}
-
-int MemoryControllerHub::get_threshold()
-{
-    return threshold;
 }
 
 void MemoryControllerHub::register_interconnect(Interconnect *interconnect, int type)
@@ -505,7 +490,6 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
     queueEntry->request->incRefCounter();
     ADD_HISTORY_ADD(queueEntry->request);
     
-    /* yclin */
     switch (message->request->get_type()) {
         case MEMORY_OP_UPDATE:
             queueEntry->type = COMMAND_write;
@@ -514,13 +498,9 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
         case MEMORY_OP_WRITE:
             queueEntry->type = COMMAND_read;
             break;
-        case MEMORY_OP_MIGRATE:
-            queueEntry->type = COMMAND_migrate;
-            break;
         default:
             assert(0);
     }
-    /* yclin */
     
     return true;
 }
@@ -566,7 +546,6 @@ bool MemoryControllerHub::wait_interconnect_cb(void *arg)
     /* Don't send response if its a memory update request */
     switch (queueEntry->request->get_type()) {
         case MEMORY_OP_UPDATE:
-        case MEMORY_OP_MIGRATE: /* yclin */
             queueEntry->request->decRefCounter();
             ADD_HISTORY_REM(queueEntry->request);
             controller[channel]->pendingRequests_.free(queueEntry);
@@ -677,4 +656,4 @@ struct MemoryControllerHubBuilder : public ControllerBuilder
     }
 };
 
-MemoryControllerHubBuilder memControllerBuilder("dram_module");
+MemoryControllerHubBuilder memoryControllerHubBuilder("dram_module");

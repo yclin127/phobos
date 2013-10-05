@@ -182,10 +182,6 @@ namespace Memory {
 
     // interface to memory hierarchy
 	bool access_cache(MemoryRequest *request);
-    bool access_memory(MemoryRequest *request); /* yclin */
-    bool asym_is_movable(W64 address); /* yclin */
-    int  asym_next_victim(W64 address); /* yclin */
-    int  asym_get_threshold(); /* yclin */
 
     // New Core wakeup function that uses Signal of MemoryRequest
     // if Signal is not setup, it uses old wrapper functions
@@ -237,13 +233,18 @@ namespace Memory {
         cpuControllers_.push(cont);
     }
 
-    void add_cache_controller(Controller* cont) {
+#if 1 /* yclin */
+    void add_cache_mem_controller(Controller* cont, bool mem=false) {
+        allControllers_.push(cont);
+        if (mem) {
+            memoryController_ = cont;
+        }
+    }
+#else
+    void add_cache_mem_controller(Controller* cont) {
         allControllers_.push(cont);
     }
-
-    void add_mem_controller(Controller* cont) {
-        memoryController_ = cont;
-    }
+#endif
 
     void add_interconnect(Interconnect* conn) {
         allInterconnects_.push(conn);

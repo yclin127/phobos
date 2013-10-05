@@ -80,10 +80,11 @@ bool ThreadContext::probeitlb(Waddr icache_addr) {
     return true;
 #endif
 
-    /* yclin */
-    // if(!i(icache_addr, threadid)) {
-    if(!getcore().stlb.probe(icache_addr)) {
-    /* yclin */
+#if 1 /* yclin */
+    if(!stlb.probe(icache_addr)) {
+#else
+    if(!itlb.probe(icache_addr, threadid)) {
+#endif
 
         if(logable(6)) {
             ptl_logfile << "itlb miss addr: ", (void*)icache_addr, endl;
@@ -116,10 +117,11 @@ itlb_walk_finish:
             ptl_logfile << "itlbwalk finished for virtaddr: ", (void*)(W64(fetchrip)), endl;
         }
         itlb_walk_level = 0;
-        /* yclin */
-        // itlb.insert(fetchrip, threadid);
-        getcore().stlb.insert(fetchrip);
-        /* yclin */
+#if 1 /* yclin */
+        stlb.insert(fetchrip);
+#else
+        itlb.insert(fetchrip, threadid);
+#endif
         int delay = min(sim_cycle - itlb_miss_init_cycle, (W64)1000);
         thread_stats.dcache.itlb_latency[delay]++;
         waiting_for_icache_fill = 0;
@@ -145,7 +147,7 @@ itlb_walk_finish:
     request->init(core.get_coreid(), threadid, pteaddr, 0, sim_cycle,
             true, 0, 0, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&core.icache_signal);
-    
+
     waiting_for_icache_fill_physaddr = floor(pteaddr, ICACHE_FETCH_GRANULARITY);
     waiting_for_icache_fill = 1;
 

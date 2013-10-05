@@ -888,97 +888,8 @@ namespace OOO_CORE_MODEL {
       * virtual addresses are 48 bits, so 48 - 12 (2^12 bytes per page)
       * is 36 bits.
       */
-    
-    /*template <int tlbid, int size, int ways=4> struct TranslationLookasideBuffer {
-        struct TLBEntry {
-            W64 tag;
-            int counter;
-            TLBEntry* next;
-            void reset() {
-                tag = -1;
-                counter = 0;
-            }
-        };
-        TLBEntry entry[size/ways][ways];
-        TLBEntry *set[size/ways];
 
-        TranslationLookasideBuffer() {
-            reset();
-        }
-
-        void reset() {
-            for (int i=0; i<size/ways; i+=1) {
-                set[i] = &entry[i][0];
-                for (int j=0; j<ways; j+=1) {
-                    entry[i][j].reset();
-                    entry[i][j].next = (j!=ways-1 ? &(entry[i][j+1]) : NULL);
-                }
-            }
-        }
-
-        bool probe(W64 addr) {
-            W64 tag = addr/PAGE_SIZE;
-            int index = tag%(size/ways);
-            TLBEntry *last = NULL;
-            TLBEntry *ent = set[index];
-            while (ent != NULL) {
-                if (ent->tag == tag) {
-                    if (last != NULL) {
-                        last->next = ent->next;
-                        ent->next = set[index];
-                        set[index] = ent;
-                    }
-                    return true;
-                }
-                last = ent;
-                ent = ent->next;
-            }
-            return false;
-        }
-
-        bool insert(W64 addr) {
-            W64 tag = addr/PAGE_SIZE;
-            int index = tag%(size/ways);
-            TLBEntry *last = NULL;
-            TLBEntry *ent = set[index];
-            while (ent->next != NULL) {
-                if (ent->tag == tag)
-                    return true;
-                last = ent;
-                ent = ent->next;
-            }
-            if (last != NULL) {
-                last->next = ent->next;
-                ent->next = set[index];
-                set[index] = ent;
-            }
-            ent->reset();
-            ent->tag = tag;
-            return true;
-        }
-
-        bool access(W64 addr, int threshold) {
-            W64 tag = addr/PAGE_SIZE;
-            int index = tag%(size/4);
-            TLBEntry *ent = set[index];
-            for (; ent != NULL; ent = ent->next) {
-                if (ent->tag == tag) {
-                    ent->counter += 1;
-                    if (ent->counter == threshold) {
-                        return true;
-                    }
-                    return false;
-                }
-            }
-            return false;
-        }
-
-        int flush_all() {
-            reset();
-            return size;
-        }
-    };*/
-    
+#if 1 /* yclin */
     struct TLBEntry {
         int counter;
         void reset() {
@@ -996,7 +907,7 @@ namespace OOO_CORE_MODEL {
         
         TranslationLookasideBuffer() {
         }
-
+        
         void reset() {
           base_t::reset();
         }
@@ -1032,24 +943,23 @@ namespace OOO_CORE_MODEL {
           }
           return (oldtag != tag);
         }
-
+         
         int flush_all() {
           reset();
           return size;
         }
     };
-      
-
-    /*template <int tlbid, int size>
-      struct TranslationLookasideBuffer2: public FullyAssociativeTagsNbitOneHot<size, 40> {
+#else
+    template <int tlbid, int size>
+      struct TranslationLookasideBuffer: public FullyAssociativeTagsNbitOneHot<size, 40> {
         typedef FullyAssociativeTagsNbitOneHot<size, 40> base_t;
-        TranslationLookasideBuffer2(): base_t() { }
+        TranslationLookasideBuffer(): base_t() { }
 
         void reset() {
           base_t::reset();
         }
 
-        // Get the 40-bit TLB tag (36 bit virtual page ID plus 4 bit threadid)
+        /* Get the 40-bit TLB tag (36 bit virtual page ID plus 4 bit threadid) */
         static W64 tagof(W64 addr, W64 threadid) {
           return bits(addr, 12, 36) | (threadid << 36);
         }
@@ -1089,7 +999,8 @@ namespace OOO_CORE_MODEL {
         int flush_virt(Waddr virtaddr, W64 threadid) {
           return invalidate(tagof(virtaddr, threadid));
         }
-      };*/
+      };
+#endif
 
     template <int tlbid, int size>
       static inline ostream& operator <<(ostream& os, const TranslationLookasideBuffer<tlbid, size>& tlb) {
@@ -1098,7 +1009,9 @@ namespace OOO_CORE_MODEL {
 
     typedef TranslationLookasideBuffer<0, DTLB_SIZE> DTLB;
     typedef TranslationLookasideBuffer<1, ITLB_SIZE> ITLB;
-    typedef TranslationLookasideBuffer<2, STLB_SIZE> STLB; /* yclin */
+#if 1 /* yclin */
+    typedef TranslationLookasideBuffer<2, STLB_SIZE> STLB;
+#endif
 
     /**
      * @brief represent a OOO  thread in SMT core.
@@ -1147,10 +1060,12 @@ namespace OOO_CORE_MODEL {
         RegisterRenameTable specrrt;
         RegisterRenameTable commitrrt;
 
-        /* yclin */
-        // DTLB dtlb;
-        // ITLB itlb;
-        /* yclin */
+#if 1 /* yclin */
+        static STLB stlb;
+#else
+        DTLB dtlb;
+        ITLB itlb;
+#endif
         void setupTLB();
         W64 itlb_miss_init_cycle;
         bool in_tlb_walk;
@@ -1259,15 +1174,13 @@ namespace OOO_CORE_MODEL {
         /* This is only used for stats collection. By default if core is
          * collecting stats that is common across threads then its collected
          * into Stats that Thread-0 is using.
-         */
+		 */
         ThreadContext& getthread() { return *threads[0]; }
 
         PTLsimStats *stats_;
 
         int threadcount;
         ThreadContext** threads;
-        
-        static STLB stlb;
 
         ListOfStateLists rob_states;
         ListOfStateLists lsq_states;
@@ -1426,21 +1339,21 @@ namespace OOO_CORE_MODEL {
         void flush_tlb(Context& ctx);
         void flush_tlb_virt(Context& ctx, Waddr virtaddr);
 
-        /* Cache Signals and Callbacks */
+		/* Cache Signals and Callbacks */
         Signal dcache_signal;
         Signal icache_signal;
-        Signal run_cycle;
+		Signal run_cycle;
 
         bool dcache_wakeup(void *arg);
         bool icache_wakeup(void *arg);
 
-        /* Debugging */
+		/* Debugging */
         void dump_state(ostream& os);
         void print_smt_state(ostream& os);
         void check_refcounts();
         void check_rob();
 
-        /* Stats */
+		/* Stats */
         OooCoreStats core_stats;
 
         void update_stats();

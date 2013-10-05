@@ -52,7 +52,7 @@ CacheController::CacheController(W8 coreid, const char *name,
     , lowerCont_(NULL)
     , coherence_logic_(NULL)
 {
-    memoryHierarchy_->add_cache_controller(this);
+    memoryHierarchy_->add_cache_mem_controller(this);
     new_stats = new MESIStats(name, &memoryHierarchy->get_machine());
 
     cacheLines_ = get_cachelines(type);

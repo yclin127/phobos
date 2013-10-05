@@ -79,8 +79,10 @@
 #define OOO_DTLB_SIZE 32
 #endif
 
+#if 1 /* yclin */
 #ifndef OOO_STLB_SIZE
 #define OOO_STLB_SIZE 1024
+#endif
 #endif
 
 /* functional units */
@@ -256,7 +258,9 @@ namespace OOO_CORE_MODEL {
     /* TLBs */
     const int ITLB_SIZE = OOO_ITLB_SIZE;
     const int DTLB_SIZE = OOO_DTLB_SIZE;
+#if 1 /* yclin */
     const int STLB_SIZE = OOO_STLB_SIZE;
+#endif
 
     /* How many bytes of x86 code to fetch into decode buffer at once */
     static const int ICACHE_FETCH_GRANULARITY = 16;

@@ -43,7 +43,7 @@
 #include <statelist.h>
 
 #include <cpuController.h>
-#include <memoryControllerConst.h>
+#include <memoryControllerSimple.h>
 
 #include <yaml/yaml.h>
 
@@ -87,57 +87,6 @@ bool MemoryHierarchy::access_cache(MemoryRequest *request)
 
 	return false;
 }
-
-/* yclin */
-
-#include <memoryController.h>
-
-using namespace DRAM;
-
-bool MemoryHierarchy::access_memory(MemoryRequest *request)
-{
-	MemoryControllerHub *memController = (MemoryControllerHub*)memoryController_;
-	assert(memController != NULL);
-
-	Message& message = *get_message();
-	message.sender = this;
-	message.request = request;
-	message.hasData = false;
-	message.arg = NULL;
-
-	bool ret_val;
-	ret_val = memController->get_interconnect_signal()->emit((void *)&message);
-
-	free_message(&message);
-
-	return ret_val;
-}
-
-bool MemoryHierarchy::asym_is_movable(W64 address)
-{
-    MemoryControllerHub *memController = (MemoryControllerHub*)memoryController_;
-    assert(memController != NULL);
-    
-    return memController->is_movable(address);
-}
-
-int MemoryHierarchy::asym_next_victim(W64 address)
-{
-    MemoryControllerHub *memController = (MemoryControllerHub*)memoryController_;
-    assert(memController != NULL);
-    
-    return memController->next_victim(address);
-}
-
-int MemoryHierarchy::asym_get_threshold()
-{
-    MemoryControllerHub *memController = (MemoryControllerHub*)memoryController_;
-    assert(memController != NULL);
-    
-    return memController->get_threshold();
-}
-
-/* yclin */
 
 void MemoryHierarchy::clock()
 {
@@ -438,7 +387,7 @@ void MemoryHierarchy::annul_request(W8 coreid,
 
 int MemoryHierarchy::get_core_pending_offchip_miss(W8 coreid)
 {
-	return ((MemoryControllerConst*)memoryController_)->
+	return ((MemoryControllerSimple*)memoryController_)->
 		get_no_pending_request(coreid);
 }
 

@@ -83,6 +83,8 @@ struct Config {
     
     int asym_mat_group;
     int asym_mat_ratio;
+    int asym_det_threshold;
+    int asym_det_size;
     
     float clock;
     

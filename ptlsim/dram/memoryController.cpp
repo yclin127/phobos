@@ -14,7 +14,62 @@
 
 using namespace DRAM;
 
-MemoryController::MemoryController(Config &config, AddressMapping &mapping, Policy &policy) :
+
+MemoryMapping::MemoryMapping(Config &config)
+{
+    int shift = 0;
+    mapping.offset.shift  = shift; shift +=
+    mapping.offset.width  = log_2(config.offsetcount);
+    mapping.column.shift  = shift; shift +=
+    mapping.column.width  = log_2(config.columncount);
+    mapping.channel.shift = shift; shift +=
+    mapping.channel.width = log_2(config.channelcount);
+    mapping.bank.shift    = shift; shift +=
+    mapping.bank.width    = log_2(config.bankcount);
+    mapping.rank.shift    = shift; shift +=
+    mapping.rank.width    = log_2(config.rankcount);
+    mapping.row.shift     = shift; shift +=
+    mapping.row.width     = log_2(config.rowcount);
+    
+    shift = mapping.row.shift;
+    mapping.group.shift   = shift; shift +=
+    mapping.group.width   = log_2(config.groupcount);
+    mapping.index.shift   = shift; shift +=
+    mapping.index.width   = log_2(config.indexcount);
+}
+
+MemoryMapping::~MemoryMapping()
+{
+}
+
+int MemoryMapping::channel(W64 address)
+{
+    /** Address mapping scheme goes here. */
+    
+    return mapping.channel.value(address);
+}
+
+void MemoryMapping::translate(W64 address, Coordinates &coordinates)
+{
+    /** Address mapping scheme goes here. */
+    
+    coordinates.channel = mapping.channel.value(address);
+    coordinates.rank    = mapping.rank.value(address);
+    coordinates.bank    = mapping.bank.value(address);
+    coordinates.row     = mapping.row.value(address);
+    coordinates.column  = mapping.column.value(address);
+    coordinates.offset  = mapping.offset.value(address);
+    
+    coordinates.group   = mapping.group.value(address);
+    coordinates.index   = mapping.index.value(address);
+}
+
+bool MemoryMapping::migrate(Coordinates &coordinates)
+{
+    return false;
+}
+
+MemoryController::MemoryController(Config &config, MemoryMapping &mapping, Policy &policy) :
     mapping(mapping), policy(policy)
 {
     asym_mat_group = config.asym_mat_group;
@@ -43,7 +98,6 @@ MemoryController::MemoryController(Config &config, AddressMapping &mapping, Poli
             BankData &bank = channel->getBankData(coordinates);
             bank.demandCount = 0;
             bank.rowBuffer = -1;
-            bank.remapping.init(groupcount, indexcount, asym_mat_ratio);
         }
     }
 }
@@ -51,21 +105,6 @@ MemoryController::MemoryController(Config &config, AddressMapping &mapping, Poli
 MemoryController::~MemoryController()
 {
     delete channel;
-}
-
-void MemoryController::translate(W64 address, Coordinates &coordinates)
-{
-    /** Address mapping scheme goes here. */
-    
-    coordinates.channel = mapping.channel.value(address);
-    coordinates.rank    = mapping.rank.value(address);
-    coordinates.bank    = mapping.bank.value(address);
-    coordinates.row     = mapping.row.value(address);
-    coordinates.column  = mapping.column.value(address);
-    coordinates.offset  = mapping.offset.value(address);
-    
-    coordinates.group   = mapping.group.value(address);
-    coordinates.index   = mapping.index.value(address);
 }
 
 bool MemoryController::addTransaction(long clock, RequestEntry *request)
@@ -83,18 +122,13 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     W64 address = request->request->get_physical_address();
     Coordinates &coordinates = queueEntry->coordinates;
     
-    translate(address, coordinates);
+    mapping.translate(address, coordinates);
     
     RankData &rank = channel->getRankData(coordinates);
     BankData &bank = channel->getBankData(coordinates);
     
-    /**if (request->request->get_type() == MEMORY_OP_MIGRATE) {
-        coordinates.column = 0;
-        coordinates.offset = request->request->get_virtual_address();
-    }*/
-    
     total_accs_committed += 1;
-    if (bank.remapping.cached(coordinates)) {
+    if (asym_mat_ratio > 0 && coordinates.index % asym_mat_ratio == 0) {
         total_caps_committed += 1;
     }
     
@@ -102,10 +136,6 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     bank.demandCount += 1;
     if (coordinates.row == bank.rowBuffer) {
         bank.supplyCount += 1;
-    }
-
-    if (asym_mat_ratio > 0 && request->type == COMMAND_migrate) {
-        bank.remapping.swap(coordinates.group, coordinates.index, coordinates.offset);
     }
     
     return true;
@@ -138,7 +168,7 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates *coo
     return true;
 }
 
-void MemoryController::doScheduling(long clock, Signal &accessCompleted_)
+void MemoryController::schedule(long clock, Signal &accessCompleted_)
 {
     /** Request to Transaction */
     
@@ -312,9 +342,9 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
 {
     memoryHierarchy_->add_cache_mem_controller(this, true);
     
-    int asym_mat_group, asym_mat_ratio;
     int asym_mat_row_speedup, asym_mat_col_speedup;
-    int asym_threshold;
+    int asym_mat_ratio, asym_mat_group;
+    int asym_det_threshold, asym_det_size;
     
     {
         BaseMachine &machine = memoryHierarchy_->get_machine();
@@ -322,11 +352,12 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         option(channelcount, "channel", 1);
         option(policy.max_row_hits, "max_row_hits", 4);
         option(policy.max_row_idle, "max_row_idle", 0);
-        option(asym_mat_group, "asym_mat_group", 1);
-        option(asym_mat_ratio, "asym_mat_ratio", 0);
         option(asym_mat_row_speedup, "asym_mat_row_speedup", 0);
         option(asym_mat_col_speedup, "asym_mat_col_speedup", 0);
-        option(asym_threshold, "asym_threshold", 4);
+        option(asym_mat_ratio, "asym_mat_ratio", 0);
+        option(asym_mat_group, "asym_mat_group", 1);
+        option(asym_det_threshold, "asym_det_threshold", 4);
+        option(asym_det_size, "asym_det_size", 1024);
 #undef option
     }
     
@@ -334,14 +365,17 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         dramconfig = *get_dram_config(type);
         
         dramconfig.channelcount = channelcount;
-        dramconfig.rankcount = ram_size/dramconfig.ranksize/dramconfig.channelcount;
-        dramconfig.rowcount = dramconfig.ranksize/dramconfig.bankcount/dramconfig.columncount/dramconfig.offsetcount;
-        dramconfig.groupcount = dramconfig.rowcount/asym_mat_group;
-        dramconfig.indexcount = asym_mat_group;
+        dramconfig.rankcount    = ram_size / dramconfig.channelcount / dramconfig.ranksize;
+        dramconfig.rowcount     = dramconfig.ranksize / dramconfig.bankcount /
+                                  dramconfig.columncount / dramconfig.offsetcount;
+        dramconfig.groupcount   = dramconfig.rowcount / asym_mat_group;
+        dramconfig.indexcount   = asym_mat_group;
         
-        dramconfig.asym_mat_group = asym_mat_group;
-        dramconfig.asym_mat_ratio = asym_mat_ratio;
         dramconfig.cache_setup(asym_mat_row_speedup, asym_mat_col_speedup);
+        dramconfig.asym_mat_ratio = asym_mat_ratio;
+        dramconfig.asym_mat_group = asym_mat_group;
+        dramconfig.asym_det_threshold = asym_det_threshold;
+        dramconfig.asym_det_size = asym_det_size;
     }
     
     {
@@ -349,35 +383,13 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         clock_den = dramconfig.clock*config.core_freq_hz;
         clock_rem = 0;
         clock_mem = 0;
-    
-        int shift = 0;
-        mapping.offset.shift  = shift; shift +=
-        mapping.offset.width  = log_2(dramconfig.offsetcount);
-        mapping.column.shift  = shift; shift +=
-        mapping.column.width  = log_2(dramconfig.columncount);
-        mapping.channel.shift = shift; shift +=
-        mapping.channel.width = log_2(dramconfig.channelcount);
-        mapping.bank.shift    = shift; shift +=
-        mapping.bank.width    = log_2(dramconfig.bankcount);
-        mapping.rank.shift    = shift; shift +=
-        mapping.rank.width    = log_2(dramconfig.rankcount);
-        mapping.row.shift     = shift; shift +=
-        mapping.row.width     = log_2(dramconfig.rowcount);
-        
-        shift = mapping.row.shift;
-        mapping.group.shift   = shift; shift +=
-        mapping.group.width   = log_2(dramconfig.groupcount);
-        mapping.index.shift   = shift; shift +=
-        mapping.index.width   = log_2(dramconfig.indexcount);
-    
-        detector.allocate(1024, 4);
-        threshold = asym_threshold;
-        victim = 0;
     }
+    
+    mapping = new MemoryMapping(dramconfig);
     
     controller = new MemoryController*[channelcount];
     for (int channel=0; channel<channelcount; ++channel) {
-        controller[channel] = new MemoryController(dramconfig, mapping, policy);
+        controller[channel] = new MemoryController(dramconfig, *mapping, policy);
     }
     
     SET_SIGNAL_CB(name, "_Access_Completed", accessCompleted_,
@@ -395,19 +407,6 @@ MemoryControllerHub::~MemoryControllerHub()
     delete [] controller;
 }
 
-bool MemoryControllerHub::is_movable(W64 address)
-{
-    if (dramconfig.asym_mat_ratio == 0)
-        return false;
-    
-    Coordinates coordinates;
-    int channel = mapping.channel.value(address);
-    controller[channel]->translate(address, coordinates);
-    BankData &bank = controller[channel]->channel->getBankData(coordinates);
-    
-    return !bank.remapping.cached(coordinates);
-}
-
 void MemoryControllerHub::register_interconnect(Interconnect *interconnect, int type)
 {
     switch(type) {
@@ -423,7 +422,7 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
 {
     Message *message = (Message*)arg;
     
-    int channel = mapping.channel.value(message->request->get_physical_address());
+    int channel = mapping->channel(message->request->get_physical_address());
 
     //memdebug("Received message in Memory controller: ", *message, endl);
 
@@ -518,7 +517,7 @@ bool MemoryControllerHub::access_completed_cb(void *arg)
 {
     RequestEntry *queueEntry = (RequestEntry*)arg;
     
-    int channel = mapping.channel.value(queueEntry->request->get_physical_address());
+    int channel = mapping->channel(queueEntry->request->get_physical_address());
 
     if(!queueEntry->annuled) {
 
@@ -539,7 +538,7 @@ bool MemoryControllerHub::wait_interconnect_cb(void *arg)
 {
     RequestEntry *queueEntry = (RequestEntry*)arg;
     
-    int channel = mapping.channel.value(queueEntry->request->get_physical_address());
+    int channel = mapping->channel(queueEntry->request->get_physical_address());
 
     bool success = false;
 
@@ -588,7 +587,7 @@ void MemoryControllerHub::clock()
     if (clock_rem >= clock_den) {
         for (int channel=0; channel<channelcount; ++channel) {
             controller[channel]->channel->cycle(clock_mem);
-            controller[channel]->doScheduling(clock_mem, accessCompleted_);
+            controller[channel]->schedule(clock_mem, accessCompleted_);
         }
         clock_mem += 1;
         clock_rem -= clock_den;
@@ -597,7 +596,7 @@ void MemoryControllerHub::clock()
 
 void MemoryControllerHub::annul_request(MemoryRequest *request)
 {
-    int channel = mapping.channel.value(request->get_physical_address());
+    int channel = mapping->channel(request->get_physical_address());
     
     RequestEntry *queueEntry;
     foreach_list_mutable(controller[channel]->pendingRequests_.list(), queueEntry,

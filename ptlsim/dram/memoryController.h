@@ -70,77 +70,28 @@ struct CommandEntry : public FixStateListObject
 
 
 
-class Detector
+class MemoryMapping
 {
     private:
         struct Entry {
             W64 tag;
-            int count;
             Entry* next;
+            int count;
         };
         
         int set_count, way_count;
         Entry *entries;
         Entry **sets;
-
+        
+        BitMapping mapping;
+        
     public:
-        Detector() {
-            entries = NULL;
-            sets = NULL;
-        }
+        MemoryMapping(Config &config);
+        virtual ~MemoryMapping();
         
-        virtual ~Detector() {
-            free();
-        }
-        
-        void allocate(int nset, int nway) {
-            set_count = nset;
-            way_count = nway;
-            entries = new Entry[set_count*way_count];
-            sets    = new Entry*[set_count];
-            
-            for (int i=0; i<set_count; i+=1) {
-                sets[i] = &entries[i*way_count];
-                for (int j=0; j<way_count; j+=1) {
-                    sets[i][j].tag = -1;
-                    sets[i][j].count = 0;
-                    sets[i][j].next = &sets[i][j+1];
-                }
-                sets[i][way_count-1].next = NULL;
-            }
-        }
-        
-        void free() {
-            if (entries) {
-                delete [] entries;
-                entries = NULL;
-            }
-            if (sets) {
-                delete [] sets;
-                sets = NULL;
-            }
-        }
-
-        int lookup(W64 tag) {
-            int index = tag % set_count;
-            Entry *last = NULL;
-            Entry *current = sets[index];
-            while (current->tag != tag && current->next) {
-                last = current;
-                current = current->next;
-            }
-            if (last != NULL) {
-                last->next = current->next;
-                current->next = sets[index];
-                sets[index] = current;
-            }
-            if (current->tag != tag) {
-                current->tag = tag;
-                current->count = 0;
-            }
-            current->count += 1;
-            return current->count;
-        }
+        int channel(W64 address);
+        void translate(W64 address, Coordinates &coordinates);
+        bool migrate(Coordinates &coordinates);
 };
 
 
@@ -148,7 +99,7 @@ class Detector
 class MemoryController
 {
     private:
-        AddressMapping &mapping;
+        MemoryMapping &mapping;
         Policy &policy;
     
         int asym_mat_group;
@@ -161,7 +112,7 @@ class MemoryController
         int refresh_interval;
 
     public:
-        MemoryController(Config &config, AddressMapping &mapping, Policy &policy);
+        MemoryController(Config &config, MemoryMapping &mapping, Policy &policy);
         virtual ~MemoryController();
         
         Channel *channel;
@@ -170,11 +121,10 @@ class MemoryController
         FixStateList<TransactionEntry, MEM_TRANS_NUM> pendingTransactions_;
         FixStateList<CommandEntry, MEM_CMD_NUM> pendingCommands_;
         
-        void translate(W64 address, Coordinates &coordinates);
-        
         bool addTransaction(long clock, RequestEntry *request);
         bool addCommand(long clock, CommandType type, Coordinates *coordinates, RequestEntry *request);
-        void doScheduling(long clock, Signal &accessCompleted_);
+        
+        void schedule(long clock, Signal &accessCompleted_);
 };
 
 class MemoryControllerHub : public Controller
@@ -185,27 +135,19 @@ class MemoryControllerHub : public Controller
         Signal accessCompleted_;
         Signal waitInterconnect_;
         
-        AddressMapping mapping;
         Policy policy;
         
         Config dramconfig;
         int channelcount;
         
+        MemoryMapping *mapping;
         MemoryController **controller;
         long clock_num, clock_den;
         long clock_rem, clock_mem;
         
-        Detector detector;
-        int threshold;
-        int victim;
-        
     public:
         MemoryControllerHub(W8 coreid, const char *name, MemoryHierarchy *memoryHierarchy, int type);
         virtual ~MemoryControllerHub();
-        
-        bool is_movable(W64 address);
-        int  next_victim(W64 address);
-        int  get_threshold();
         
         void register_interconnect(Interconnect *interconnect, int type);
         

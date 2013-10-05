@@ -101,7 +101,7 @@ inline int log_2(int value) {
     return result;
 }
 
-struct AddressMapping {
+struct BitMapping {
     BitField channel;
     BitField rank;
     BitField bank;
@@ -113,52 +113,11 @@ struct AddressMapping {
     BitField index;
 };
 
-struct AddressRemapping {
-    int step;
-    int **forward;
-    int **backward;
-    
-    void init(int groups, int indices, int ratio) {
-        step = ratio;
-        forward = NULL;
-        backward = NULL;
-        forward = new int*[groups];
-        backward = new int*[groups];
-        for (int i=0; i<groups; i+=1) {
-            forward[i] = new int[indices];
-            backward[i] = new int[indices];
-            for (int j=0; j<indices; j+=1) {
-                forward[i][j] = j;
-                backward[i][j] = j;
-            }
-        }
-    }
-    
-    bool cached(Coordinates &coordinates) {
-        return step > 0 && forward[coordinates.group][coordinates.index] % step == 0;
-    }
-    
-    void swap(int group, int index, int victim) {
-        int temp1 = forward[group][index];
-        int temp2 = backward[group][victim];
-        
-        forward[group][index] = victim;
-        forward[group][temp2] = temp1;
-        
-        backward[group][temp1] = temp2;
-        backward[group][victim] = index;
-        
-        assert(backward[group][forward[group][index]] == index);
-        assert(forward[group][backward[group][victim]] == victim);
-    }
-};
-
 struct BankData {
     int demandCount;
     int supplyCount;
     int rowBuffer;
     int hitCount;
-    AddressRemapping remapping;
 };
 
 struct RankData {

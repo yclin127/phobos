@@ -426,7 +426,7 @@ long Bank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
 {
     BankTiming *timing;
     
-    if (data.remapping.cached(coordinates)) {
+    if (asym_mat_ratio > 0 && coordinates.index % asym_mat_ratio == 0) {
         timing = fast_timing;
     } else {
         timing = slow_timing;

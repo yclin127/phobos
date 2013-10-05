@@ -101,12 +101,12 @@ class Detector
             
             for (int i=0; i<set_count; i+=1) {
                 sets[i] = &entries[i*way_count];
-                for (int j=0; j<set_count; j+=1) {
+                for (int j=0; j<way_count; j+=1) {
                     sets[i][j].tag = -1;
                     sets[i][j].count = 0;
                     sets[i][j].next = &sets[i][j+1];
                 }
-                sets[i][set_count-1].next = NULL;
+                sets[i][way_count-1].next = NULL;
             }
         }
         

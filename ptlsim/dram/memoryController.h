@@ -162,11 +162,11 @@ class MemoryMapping
     private:
         BitMapping mapping;
         
-        AssociativeTags<int> counter;
-        int threshold;
-        int group;
-        int ratio;
-        int serial;
+        AssociativeTags<int> det_counter;
+        int det_threshold;
+        int mat_group;
+        int mat_ratio;
+        int rep_serial;
         
         int **remapping_forward;
         int **remapping_backward;

@@ -16,12 +16,12 @@ using namespace DRAM;
 
 
 MemoryMapping::MemoryMapping(Config &config) : 
-    counter(config.asym_det_size/4, 4)
+    det_counter(config.asym_det_size/4, 4)
 {
-    threshold = config.asym_det_threshold;
-    group = config.asym_mat_group;
-    ratio = config.asym_mat_ratio;
-    serial = 0;
+    det_threshold = config.asym_det_threshold;
+    mat_group = config.asym_mat_group;
+    mat_ratio = config.asym_mat_ratio;
+    rep_serial = 0;
     
     int shift = 0;
     mapping.offset.shift  = shift; shift +=
@@ -83,24 +83,24 @@ void MemoryMapping::translate(W64 address, Coordinates &coordinates)
 
 bool MemoryMapping::detect(Coordinates &coordinates)
 {
-    if (coordinates.place % ratio == 0) return false;
+    if (coordinates.place % mat_ratio == 0) return false;
     
     W64 tag, oldtag;
     tag = (coordinates.group << mapping.index.width) | coordinates.index;
-    int& count = counter.lookup(tag, oldtag);
+    int& count = det_counter.lookup(tag, oldtag);
     if (oldtag != tag) count = 0;
     count += 1;
 
-    return count == threshold;
+    return count == det_threshold;
 }
 
 void MemoryMapping::promote(Coordinates &coordinates)
 {
     int group = coordinates.group;
     int index = coordinates.index;
-    int place = serial;
+    int place = rep_serial;
 
-    serial = (serial + ratio) % group;
+    rep_serial = (rep_serial + mat_ratio) % mat_group;
     
     int indexP = remapping_backward[group][place];
     int placeP = remapping_forward[group][index];

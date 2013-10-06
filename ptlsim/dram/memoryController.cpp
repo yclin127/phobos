@@ -22,7 +22,6 @@ MemoryMapping::MemoryMapping(Config &config) :
     group = config.asym_mat_group;
     ratio = config.asym_mat_ratio;
     serial = 0;
-    detected = false;
     
     int shift = 0;
     mapping.offset.shift  = shift; shift +=
@@ -80,38 +79,28 @@ void MemoryMapping::translate(W64 address, Coordinates &coordinates)
     coordinates.index   = mapping.index.value(address);
     
     coordinates.place   = remapping_forward[coordinates.group][coordinates.index];
+}
+
+bool MemoryMapping::detect(Coordinates &coordinates)
+{
+    if (coordinates.place % ratio == 0) return false;
     
-    // detection
     W64 tag, oldtag;
     tag = (coordinates.group << mapping.index.width) | coordinates.index;
     int& count = counter.lookup(tag, oldtag);
     if (oldtag != tag) count = 0;
     count += 1;
-    
-    // migration
-    if (count == threshold && coordinates.place % ratio != 0) {
-        detected = true;
-        migration = coordinates;
-        migration.place = serial;
-        serial = (serial + ratio) % group;
-    }
+
+    return count == threshold;
 }
 
-bool MemoryMapping::getMigration(Coordinates &coordinates)
+void MemoryMapping::promote(Coordinates &coordinates)
 {
-    if (detected) {
-        coordinates = migration;
-    }
-    return detected;
-}
+    int group = coordinates.group;
+    int index = coordinates.index;
+    int place = serial;
 
-void MemoryMapping::popMigration()
-{
-    assert(detected);
-    
-    int group = migration.group;
-    int index = migration.index;
-    int place = migration.place;
+    serial = (serial + ratio) % group;
     
     int indexP = remapping_backward[group][place];
     int placeP = remapping_forward[group][index];
@@ -124,8 +113,6 @@ void MemoryMapping::popMigration()
     
     assert(remapping_backward[group][remapping_forward[group][index]] == index);
     assert(remapping_forward[group][remapping_backward[group][place]] == place);
-    
-    detected = false;
 }
 
 MemoryController::MemoryController(Config &config, MemoryMapping &mapping, Policy &policy) :
@@ -133,6 +120,8 @@ MemoryController::MemoryController(Config &config, MemoryMapping &mapping, Polic
 {
     asym_mat_group = config.asym_mat_group;
     asym_mat_ratio = config.asym_mat_ratio;
+
+    detection = false;
     
     rankcount = config.rankcount;
     bankcount = config.bankcount;
@@ -189,11 +178,12 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     }
     queueEntry->request = request;
     
+    // translate address to dram coordinates
     W64 address = request->request->get_physical_address();
     Coordinates &coordinates = queueEntry->coordinates;
-    
     mapping.translate(address, coordinates);
     
+    // update dram status
     RankData &rank = channel->getRankData(coordinates);
     BankData &bank = channel->getBankData(coordinates);
     
@@ -202,14 +192,22 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     if (coordinates.row == bank.rowBuffer) {
         bank.supplyCount += 1;
     }
-    
+
+    // detect hot data
+    assert(!detection);
+    detection = mapping.detect(coordinates);
+    if (detection) {
+        migration = coordinates;
+    }
+
+    // update statistics
     total_accs_committed += 1;
     request->request->access = true;
     if (coordinates.place % asym_mat_ratio == 0) {
         total_caps_committed += 1;
         request->request->capture = true;
     }
-    if (mapping.getMigration(coordinates)) {
+    if (detection) {
         total_migs_committed += 1;
         request->request->migration = true;
     }
@@ -231,6 +229,7 @@ bool MemoryController::addMigration(long clock, Coordinates *coordinates)
     queueEntry->coordinates = *coordinates;
     queueEntry->request = NULL;
     
+    // update dram status
     RankData &rank = channel->getRankData(*coordinates);
     BankData &bank = channel->getBankData(*coordinates);
     
@@ -239,6 +238,9 @@ bool MemoryController::addMigration(long clock, Coordinates *coordinates)
     if (coordinates->row == bank.rowBuffer) {
         bank.supplyCount += 1;
     }
+
+    // promote hot data
+    mapping.promote(*coordinates);
     
     return true;
 }
@@ -275,12 +277,10 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
     /** Request to Transaction */
     
     {
-        Coordinates coordinates;
-        
         // waiting migration transaction
-        while (mapping.getMigration(coordinates)) {
-            if (!addMigration(clock, &coordinates)) goto r2t_done;
-            mapping.popMigration();
+        if (detection) {
+            if (!addMigration(clock, &migration)) goto r2t_done;
+            detection = false;
         }
         
         RequestEntry *request;
@@ -290,9 +290,9 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
                 request->issued = true;
                 
                 // immediate migration transaction
-                while (mapping.getMigration(coordinates)) {
-                    if (!addMigration(clock, &coordinates)) goto r2t_done;
-                    mapping.popMigration();
+                if (detection) {
+                    if (!addMigration(clock, &migration)) goto r2t_done;
+                    detection = false;
                 }
             }
         }
@@ -479,6 +479,11 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     }
     
     {
+        assert(asym_mat_ratio > 0);
+        assert(asym_mat_group > 0 && asym_mat_group % asym_mat_ratio == 0);
+        assert(asym_det_threshold > 0);
+        assert(asym_det_size > 0 && asym_det_size % 4 == 0);
+
         dramconfig = *get_dram_config(type);
         
         dramconfig.channelcount = channelcount;
@@ -493,11 +498,6 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         dramconfig.asym_mat_group = asym_mat_group;
         dramconfig.asym_det_threshold = asym_det_threshold;
         dramconfig.asym_det_size = asym_det_size;
-
-        assert(asym_mat_ratio > 0);
-        assert(asym_mat_group > 0 && asym_mat_group % asym_mat_ratio == 0);
-        assert(asym_det_threshold > 0);
-        assert(asym_det_size > 0 && asym_det_size % 4 == 0);
     }
     
     {

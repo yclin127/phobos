@@ -167,8 +167,6 @@ class MemoryMapping
         int group;
         int ratio;
         int serial;
-        bool detected;
-        Coordinates migration;
         
         int **remapping_forward;
         int **remapping_backward;
@@ -179,9 +177,9 @@ class MemoryMapping
         
         int channel(W64 address);
         void translate(W64 address, Coordinates &coordinates);
-        
-        bool getMigration(Coordinates &coordinates);
-        void popMigration();
+
+        bool detect(Coordinates &coordinates);
+        void promote(Coordinates &coordinates);
 };
 
 
@@ -194,6 +192,9 @@ class MemoryController
     
         int asym_mat_group;
         int asym_mat_ratio;
+
+        bool detection;
+        Coordinates migration;
     
         int rankcount;
         int bankcount;

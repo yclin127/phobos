@@ -27,10 +27,10 @@ MemoryMapping::MemoryMapping(Config &config) :
     int shift = 0;
     mapping.offset.shift  = shift; shift +=
     mapping.offset.width  = log_2(config.offsetcount);
-    mapping.column.shift  = shift; shift +=
-    mapping.column.width  = log_2(config.columncount);
     mapping.channel.shift = shift; shift +=
     mapping.channel.width = log_2(config.channelcount);
+    mapping.column.shift  = shift; shift +=
+    mapping.column.width  = log_2(config.columncount);
     mapping.bank.shift    = shift; shift +=
     mapping.bank.width    = log_2(config.bankcount);
     mapping.rank.shift    = shift; shift +=
@@ -120,8 +120,8 @@ void MemoryMapping::popMigration()
     remapping_backward[group][place] = remapping_backward[group][placeP];
     remapping_backward[group][placeP] = indexP;
     
-    assert(remapping_backward[group][remapping_forward[group][index]]);
-    assert(remapping_forward[group][remapping_backward[group][place]]);
+    assert(remapping_backward[group][remapping_forward[group][index]] == index);
+    assert(remapping_forward[group][remapping_backward[group][place]] == place);
     
     detected = false;
 }
@@ -195,15 +195,21 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     RankData &rank = channel->getRankData(coordinates);
     BankData &bank = channel->getBankData(coordinates);
     
-    total_accs_committed += 1;
-    if (asym_mat_ratio > 0 && coordinates.place % asym_mat_ratio == 0) {
-        total_caps_committed += 1;
-    }
-    
     rank.demandCount += 1;
     bank.demandCount += 1;
     if (coordinates.row == bank.rowBuffer) {
         bank.supplyCount += 1;
+    }
+    
+    total_accs_committed += 1;
+    request->request->access = true;
+    if (asym_mat_ratio > 0 && coordinates.place % asym_mat_ratio == 0) {
+        total_caps_committed += 1;
+        request->request->capture = true;
+    }
+    if (mapping.getMigration(coordinates)) {
+        total_migs_committed += 1;
+        request->request->migration = true;
     }
     
     return true;
@@ -278,7 +284,7 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
         RequestEntry *request;
         foreach_list_mutable(pendingRequests_.list(), request, entry, nextentry) {
             if (!request->issued) {
-                if (!addTransaction(clock, request)) break; // in-order
+                if (!addTransaction(clock, request)) goto r2t_done; // in-order
                 request->issued = true;
                 
                 // immediate migration transaction

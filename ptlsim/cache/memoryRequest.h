@@ -67,6 +67,11 @@ class MemoryRequest: public selfqueuelink
 			isData_ = 0;
 			history = new stringbuf();
             coreSignal_ = NULL;
+#if 1 /* yclin */
+			access = false;
+			capture = false;
+			migration = false;
+#endif
 		}
 
 		void incRefCounter(){
@@ -166,6 +171,12 @@ class MemoryRequest: public selfqueuelink
             }
 			return os;
 		}
+
+#if 1 /* yclin */
+		bool access;
+		bool capture;
+		bool migration;
+#endif
 
 	private:
 		W8 coreId_;

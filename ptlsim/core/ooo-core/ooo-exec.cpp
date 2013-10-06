@@ -2232,6 +2232,11 @@ bool OooCore::dcache_wakeup(void *arg) {
     int idx = request->get_robid();
     W64 physaddr = request->get_physical_address();
     ThreadContext* thread = threads[request->get_threadid()];
+#if 1 /* yclin */
+    if (request->access) thread->thread_stats.commit.accesses++;
+    if (request->capture) thread->thread_stats.commit.captures++;
+    if (request->migration) thread->thread_stats.commit.migrations++;
+#endif
     assert(inrange(idx, 0, ROB_SIZE-1));
     ReorderBufferEntry& rob = thread->ROB[idx];
     if(logable(6)) ptl_logfile << " dcache_wakeup ", rob, " request ", *request, endl;

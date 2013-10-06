@@ -44,6 +44,12 @@ bool OooCore::icache_wakeup(void *arg) {
     Memory::MemoryRequest *request = (Memory::MemoryRequest*)arg;
 
     W64 physaddr = request->get_physical_address();
+#if 1 /* yclin */
+    ThreadContext* thread = threads[request->get_threadid()];
+    if (request->access) thread->thread_stats.commit.accesses++;
+    if (request->capture) thread->thread_stats.commit.captures++;
+    if (request->migration) thread->thread_stats.commit.migrations++;
+#endif
     if(logable(99)) ptl_logfile << " icache_wakeup addr ", (void*) physaddr, endl;
     foreach (i, threadcount) {
         ThreadContext* thread = threads[i];

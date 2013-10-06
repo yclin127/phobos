@@ -15,8 +15,15 @@
 using namespace DRAM;
 
 
-MemoryMapping::MemoryMapping(Config &config)
+MemoryMapping::MemoryMapping(Config &config) : 
+    counter(config.asym_det_size/4, 4)
 {
+    threshold = config.asym_det_threshold;
+    group = config.asym_mat_group;
+    ratio = config.asym_mat_ratio;
+    serial = 0;
+    detected = false;
+    
     int shift = 0;
     mapping.offset.shift  = shift; shift +=
     mapping.offset.width  = log_2(config.offsetcount);
@@ -31,11 +38,22 @@ MemoryMapping::MemoryMapping(Config &config)
     mapping.row.shift     = shift; shift +=
     mapping.row.width     = log_2(config.rowcount);
     
-    shift = mapping.row.shift;
+    shift = mapping.bank.shift;
     mapping.group.shift   = shift; shift +=
-    mapping.group.width   = log_2(config.groupcount);
+    mapping.group.width   = mapping.bank.width+mapping.rank.width+log_2(config.groupcount);
     mapping.index.shift   = shift; shift +=
     mapping.index.width   = log_2(config.indexcount);
+    
+    remapping_forward = new int*[1<<mapping.group.width];
+    remapping_backward = new int*[1<<mapping.group.width];
+    for (int i=0; i<(1<<mapping.group.width); i+=1) {
+        remapping_forward[i] = new int[1<<mapping.index.width];
+        remapping_backward[i] = new int[1<<mapping.index.width];
+        for (int j=0; j<(1<<mapping.index.width); j+=1) {
+            remapping_forward[i][j] = j;
+            remapping_backward[i][j] = j;
+        }
+    }
 }
 
 MemoryMapping::~MemoryMapping()
@@ -44,8 +62,6 @@ MemoryMapping::~MemoryMapping()
 
 int MemoryMapping::channel(W64 address)
 {
-    /** Address mapping scheme goes here. */
-    
     return mapping.channel.value(address);
 }
 
@@ -62,11 +78,52 @@ void MemoryMapping::translate(W64 address, Coordinates &coordinates)
     
     coordinates.group   = mapping.group.value(address);
     coordinates.index   = mapping.index.value(address);
+    
+    coordinates.place   = remapping_forward[coordinates.group][coordinates.index];
+    
+    W64 tag, oldtag;
+    tag = (coordinates.group << mapping.index.width) | coordinates.index;
+    int& count = counter.lookup(tag, oldtag);
+    if (oldtag != tag) count = 0;
+    count += 1;
+    
+    if (count == threshold) {
+        detected = true;
+        migration = coordinates;
+        migration.place = serial;
+        serial = (serial + ratio) % group;
+    }
 }
 
-bool MemoryMapping::migrate(Coordinates &coordinates)
+bool MemoryMapping::getMigration(Coordinates &coordinates)
 {
-    return false;
+    if (detected) {
+        coordinates = migration;
+    }
+    return detected;
+}
+
+void MemoryMapping::popMigration()
+{
+    assert(detected);
+    
+    int group = migration.group;
+    int index = migration.index;
+    int place = migration.place;
+    
+    int indexP = remapping_backward[group][place];
+    int placeP = remapping_forward[group][index];
+    
+    remapping_forward[group][index] = remapping_forward[group][indexP];
+    remapping_forward[group][indexP] = placeP;
+    
+    remapping_backward[group][place] = remapping_backward[group][placeP];
+    remapping_backward[group][placeP] = indexP;
+    
+    assert(remapping_backward[group][remapping_forward[group][index]]);
+    assert(remapping_forward[group][remapping_backward[group][place]]);
+    
+    detected = false;
 }
 
 MemoryController::MemoryController(Config &config, MemoryMapping &mapping, Policy &policy) :
@@ -139,7 +196,7 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     BankData &bank = channel->getBankData(coordinates);
     
     total_accs_committed += 1;
-    if (asym_mat_ratio > 0 && coordinates.index % asym_mat_ratio == 0) {
+    if (asym_mat_ratio > 0 && coordinates.place % asym_mat_ratio == 0) {
         total_caps_committed += 1;
     }
     
@@ -210,13 +267,14 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
     /** Request to Transaction */
     
     {
-        // waiting migration transaction
         Coordinates coordinates;
-        if (mapping.migrate(coordinates)) {
-            addMigration(clock, &coordinates);
+        
+        // waiting migration transaction
+        while (mapping.getMigration(coordinates)) {
+            if (!addMigration(clock, &coordinates)) goto r2t_done;
+            mapping.popMigration();
         }
-    }
-    {
+        
         RequestEntry *request;
         foreach_list_mutable(pendingRequests_.list(), request, entry, nextentry) {
             if (!request->issued) {
@@ -224,13 +282,15 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
                 request->issued = true;
                 
                 // immediate migration transaction
-                Coordinates coordinates;
-                if (mapping.migrate(coordinates)) {
-                    if (!addMigration(clock, &coordinates)) break;
+                while (mapping.getMigration(coordinates)) {
+                    if (!addMigration(clock, &coordinates)) goto r2t_done;
+                    mapping.popMigration();
                 }
             }
         }
     }
+
+r2t_done:
     
     /** Transaction to Command */
     

@@ -50,6 +50,7 @@ struct Coordinates {
     
     int group;
     int index;
+    int place;
     
     friend inline std::ostream &operator <<(std::ostream &os, Coordinates &coordinates) {
         os << "{"
@@ -72,18 +73,6 @@ struct BitField {
     
     long value(long address) {
         return (address >> shift) & ((1 << width) - 1);
-    }
-    
-    long clamp(long address) {
-        return (address) & ((1 << width) - 1);
-    }
-    
-    long pack(long value) {
-        return value << shift;
-    }
-    
-    long mask(long address) {
-        return address & (((1 << width) - 1) << shift);
     }
     
     friend inline std::ostream &operator <<(std::ostream &os, BitField &bitfield) {

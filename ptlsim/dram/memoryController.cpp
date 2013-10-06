@@ -81,13 +81,15 @@ void MemoryMapping::translate(W64 address, Coordinates &coordinates)
     
     coordinates.place   = remapping_forward[coordinates.group][coordinates.index];
     
+    // detection
     W64 tag, oldtag;
     tag = (coordinates.group << mapping.index.width) | coordinates.index;
     int& count = counter.lookup(tag, oldtag);
     if (oldtag != tag) count = 0;
     count += 1;
     
-    if (count == threshold) {
+    // migration
+    if (count == threshold && coordinates.place % ratio != 0) {
         detected = true;
         migration = coordinates;
         migration.place = serial;
@@ -203,7 +205,7 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     
     total_accs_committed += 1;
     request->request->access = true;
-    if (asym_mat_ratio > 0 && coordinates.place % asym_mat_ratio == 0) {
+    if (coordinates.place % asym_mat_ratio == 0) {
         total_caps_committed += 1;
         request->request->capture = true;
     }
@@ -469,7 +471,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         option(policy.max_row_idle, "max_row_idle", 0);
         option(asym_mat_row_speedup, "asym_mat_row_speedup", 0);
         option(asym_mat_col_speedup, "asym_mat_col_speedup", 0);
-        option(asym_mat_ratio, "asym_mat_ratio", 0);
+        option(asym_mat_ratio, "asym_mat_ratio", 1);
         option(asym_mat_group, "asym_mat_group", 1);
         option(asym_det_threshold, "asym_det_threshold", 4);
         option(asym_det_size, "asym_det_size", 1024);
@@ -491,6 +493,11 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         dramconfig.asym_mat_group = asym_mat_group;
         dramconfig.asym_det_threshold = asym_det_threshold;
         dramconfig.asym_det_size = asym_det_size;
+
+        assert(asym_mat_ratio > 0);
+        assert(asym_mat_group > 0 && asym_mat_group % asym_mat_ratio == 0);
+        assert(asym_det_threshold > 0);
+        assert(asym_det_size > 0 && asym_det_size % 4 == 0);
     }
     
     {

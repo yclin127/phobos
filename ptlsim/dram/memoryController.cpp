@@ -115,13 +115,15 @@ void MemoryMapping::promote(Coordinates &coordinates)
     assert(remapping_forward[group][remapping_backward[group][place]] == place);
 }
 
-MemoryController::MemoryController(Config &config, MemoryMapping &mapping, Policy &policy) :
+MemoryController::MemoryController(Config &config, MemoryMapping &mapping, Policy &policy, int chid) :
     mapping(mapping), policy(policy)
 {
     asym_mat_group = config.asym_mat_group;
     asym_mat_ratio = config.asym_mat_ratio;
 
     detection = false;
+
+    channel_id = chid;
     
     rankcount = config.rankcount;
     bankcount = config.bankcount;
@@ -268,6 +270,12 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates *coo
     queueEntry->coordinates = *coordinates;
     queueEntry->issueTime   = issueTime;
     queueEntry->finishTime  = finishTime;
+
+    {
+        cerr << issueTime << " " << toString(type) << " " << *coordinates;
+        if (issueTime != finishTime) cerr << " *" << finishTime;
+        cerr << endl;
+    }
     
     return true;
 }
@@ -395,6 +403,7 @@ r2t_done:
     // Precharge policy
     {
         Coordinates coordinates = {0};
+        coordinates.channel = channel_id;
         for (coordinates.rank = 0; coordinates.rank < rankcount; ++coordinates.rank) {
             RankData &rank = channel->getRankData(coordinates);
             for (coordinates.bank = 0; coordinates.bank < bankcount; ++coordinates.bank) {
@@ -432,14 +441,14 @@ r2t_done:
         CommandEntry *command;
         foreach_list_mutable(pendingCommands_.list(), command, entry, nextentry) {
             
-            if (clock < command->issueTime) continue; // in-order
+            if (clock < command->finishTime) continue; // in-order
             
             switch (command->type) {
                 case COMMAND_read:
                 case COMMAND_read_precharge:
                 case COMMAND_write:
                 case COMMAND_write_precharge:
-                    marss_add_event(&accessCompleted_, command->finishTime-clock, command->request);
+                    accessCompleted_.emit(command->request);
                     break;
                     
                 default:
@@ -459,9 +468,11 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
 {
     memoryHierarchy_->add_cache_mem_controller(this, true);
     
-    int asym_mat_row_speedup, asym_mat_col_speedup;
-    int asym_mat_ratio, asym_mat_group;
     int asym_det_threshold, asym_det_size;
+    int asym_mat_ratio, asym_mat_group;
+    int asym_mat_rcd_ratio, asym_mat_ras_ratio, 
+        asym_mat_rp_ratio, asym_mat_wr_ratio, 
+        asym_mat_cl_ratio;
     
     {
         BaseMachine &machine = memoryHierarchy_->get_machine();
@@ -469,20 +480,23 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         option(channelcount, "channel", 1);
         option(policy.max_row_hits, "max_row_hits", 4);
         option(policy.max_row_idle, "max_row_idle", 0);
-        option(asym_mat_row_speedup, "asym_mat_row_speedup", 0);
-        option(asym_mat_col_speedup, "asym_mat_col_speedup", 0);
-        option(asym_mat_ratio, "asym_mat_ratio", 1);
-        option(asym_mat_group, "asym_mat_group", 1);
         option(asym_det_threshold, "asym_det_threshold", 4);
         option(asym_det_size, "asym_det_size", 1024);
+        option(asym_mat_ratio, "asym_mat_ratio", 1);
+        option(asym_mat_group, "asym_mat_group", 1);
+        option(asym_mat_rcd_ratio, "asym_mat_rcd_ratio", 0);
+        option(asym_mat_ras_ratio, "asym_mat_ras_ratio", 0);
+        option(asym_mat_rp_ratio, "asym_mat_rp_ratio", 0);
+        option(asym_mat_wr_ratio, "asym_mat_wr_ratio", 0);
+        option(asym_mat_cl_ratio, "asym_mat_cl_ratio", 0);
 #undef option
     }
     
     {
-        assert(asym_mat_ratio > 0);
-        assert(asym_mat_group > 0 && asym_mat_group % asym_mat_ratio == 0);
         assert(asym_det_threshold > 0);
         assert(asym_det_size > 0 && asym_det_size % 4 == 0);
+        assert(asym_mat_ratio > 0);
+        assert(asym_mat_group > 0 && asym_mat_group % asym_mat_ratio == 0);
 
         dramconfig = *get_dram_config(type);
         
@@ -493,11 +507,12 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         dramconfig.groupcount   = dramconfig.rowcount / asym_mat_group;
         dramconfig.indexcount   = asym_mat_group;
         
-        dramconfig.cache_setup(asym_mat_row_speedup, asym_mat_col_speedup);
-        dramconfig.asym_mat_ratio = asym_mat_ratio;
-        dramconfig.asym_mat_group = asym_mat_group;
         dramconfig.asym_det_threshold = asym_det_threshold;
         dramconfig.asym_det_size = asym_det_size;
+        dramconfig.asym_mat_ratio = asym_mat_ratio;
+        dramconfig.asym_mat_group = asym_mat_group;
+        dramconfig.cache_setup(asym_mat_rcd_ratio, asym_mat_ras_ratio, 
+            asym_mat_rp_ratio, asym_mat_wr_ratio, asym_mat_cl_ratio);
     }
     
     {
@@ -511,7 +526,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     
     controller = new MemoryController*[channelcount];
     for (int channel=0; channel<channelcount; ++channel) {
-        controller[channel] = new MemoryController(dramconfig, *mapping, policy);
+        controller[channel] = new MemoryController(dramconfig, *mapping, policy, channel);
     }
     
     SET_SIGNAL_CB(name, "_Access_Completed", accessCompleted_,

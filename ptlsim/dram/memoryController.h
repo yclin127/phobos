@@ -195,6 +195,8 @@ class MemoryController
 
         bool detection;
         Coordinates migration;
+
+        int channel_id;
     
         int rankcount;
         int bankcount;
@@ -203,7 +205,7 @@ class MemoryController
         int refresh_interval;
 
     public:
-        MemoryController(Config &config, MemoryMapping &mapping, Policy &policy);
+        MemoryController(Config &config, MemoryMapping &mapping, Policy &policy, int chid);
         virtual ~MemoryController();
         
         Channel *channel;

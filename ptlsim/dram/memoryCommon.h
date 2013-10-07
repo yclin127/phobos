@@ -13,24 +13,24 @@ enum CommandType {
     COMMAND_write,
     COMMAND_read_precharge,
     COMMAND_write_precharge,
-    COMMAND_refresh,
     COMMAND_migrate,
+    COMMAND_refresh,
     COMMAND_powerup,
     COMMAND_powerdown,
 };
     
 inline const char* toString(CommandType type) {
     static const char* name[] = {
-        "COMMAND_activate",
-        "COMMAND_precharge",
-        "COMMAND_read",
-        "COMMAND_write",
-        "COMMAND_read_precharge",
-        "COMMAND_write_precharge",
-        "COMMAND_refresh",
-        "COMMAND_migrate",
-        "COMMAND_powerup",
-        "COMMAND_powerdown",
+        "act",
+        "pre",
+        "rd ",
+        "wr ",
+        "rdp",
+        "wrp",
+        "mgr",
+        "ref",
+        "pup",
+        "pdn",
     };
     return name[type];
 }
@@ -53,7 +53,7 @@ struct Coordinates {
     int place;
     
     friend inline std::ostream &operator <<(std::ostream &os, Coordinates &coordinates) {
-        os << "{"
+        /*os << "{"
            << "channel: " << coordinates.channel 
            << ", rank: " << coordinates.rank 
            << ", bank: " << coordinates.bank 
@@ -62,7 +62,15 @@ struct Coordinates {
            << ", offset: " << coordinates.offset
            << ", group: " << coordinates.group
            << ", index: " << coordinates.index
-           << "}";
+           << "}";*/
+        os << std::hex
+           << coordinates.channel 
+           << "_" << coordinates.rank 
+           << "_" << coordinates.bank 
+           << "_" << coordinates.row 
+           << "_" << coordinates.column
+           << "_" << coordinates.offset
+           << std::dec;
         return os;
     }
 };

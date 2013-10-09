@@ -502,6 +502,8 @@ long Bank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
         case COMMAND_migrate:
             assert(migReadyTime != -1);
             assert(clock >= migReadyTime);
+
+            timing = slow_timing;
             
             actReadyTime   = -1;
             preReadyTime   = clock + timing->mig_latency + timing->act_to_pre;

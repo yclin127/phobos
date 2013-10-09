@@ -83,15 +83,13 @@ void MemoryMapping::translate(W64 address, Coordinates &coordinates)
 
 bool MemoryMapping::detect(Coordinates &coordinates)
 {
-    if (coordinates.place % mat_ratio == 0) return false;
-    
     W64 tag, oldtag;
     tag = (coordinates.group << mapping.index.width) | coordinates.index;
     int& count = det_counter.lookup(tag, oldtag);
     if (oldtag != tag) count = 0;
     count += 1;
 
-    return count == det_threshold;
+    return count == det_threshold && coordinates.place % mat_ratio != 0;
 }
 
 void MemoryMapping::promote(Coordinates &coordinates)
@@ -270,12 +268,6 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates *coo
     queueEntry->coordinates = *coordinates;
     queueEntry->issueTime   = issueTime;
     queueEntry->finishTime  = finishTime;
-
-    {
-        cerr << issueTime << " " << toString(type) << " " << *coordinates;
-        if (issueTime != finishTime) cerr << " *" << finishTime;
-        cerr << endl;
-    }
     
     return true;
 }
@@ -472,7 +464,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     int asym_mat_ratio, asym_mat_group;
     int asym_mat_rcd_ratio, asym_mat_ras_ratio, 
         asym_mat_rp_ratio, asym_mat_wr_ratio, 
-        asym_mat_cl_ratio;
+        asym_mat_cl_ratio, asym_mat_mig_ratio;
     
     {
         BaseMachine &machine = memoryHierarchy_->get_machine();
@@ -489,6 +481,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         option(asym_mat_rp_ratio, "asym_mat_rp_ratio", 0);
         option(asym_mat_wr_ratio, "asym_mat_wr_ratio", 0);
         option(asym_mat_cl_ratio, "asym_mat_cl_ratio", 0);
+        option(asym_mat_mig_ratio, "asym_mat_mig_ratio", 2);
 #undef option
     }
     
@@ -511,8 +504,8 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         dramconfig.asym_det_size = asym_det_size;
         dramconfig.asym_mat_ratio = asym_mat_ratio;
         dramconfig.asym_mat_group = asym_mat_group;
-        dramconfig.cache_setup(asym_mat_rcd_ratio, asym_mat_ras_ratio, 
-            asym_mat_rp_ratio, asym_mat_wr_ratio, asym_mat_cl_ratio);
+        dramconfig.cache_setup(asym_mat_rcd_ratio, asym_mat_ras_ratio, asym_mat_rp_ratio,
+            asym_mat_wr_ratio, asym_mat_cl_ratio, asym_mat_mig_ratio);
     }
     
     {

@@ -1451,13 +1451,11 @@ extern "C" void update_progress() {
     stringbuf sb;
 #if 1 /* yclin */
     sb << "Completed " 
-      << intstring(sim_cycle, 11) << " cycles, " 
-      << intstring(total_accs_committed, 9) << " accesses, " 
-      << intstring(total_caps_committed, 9) << " captures, " 
-      << intstring(total_migs_committed, 7) << " migrations, "
-      << intstring(total_insns_committed, 9) << " commits: " 
-      << intstring((W64)cycles_per_sec, 9) << " Hz, " 
-      << intstring((W64)insns_per_sec, 9) << " insns/sec";
+      << intstring(sim_cycle, 10) << " cycles, " 
+      << intstring(total_insns_committed, 10) << " commits, " 
+      << intstring(total_accs_committed, 8) << " accesses, " 
+      << intstring(total_caps_committed, 8) << " captures, " 
+      << intstring(total_migs_committed, 6) << " migrations";
 #else
     sb << "Completed " << intstring(sim_cycle, 13) << " cycles, " << intstring(total_insns_committed, 13) << " commits: " <<
       intstring((W64)cycles_per_sec, 9) << " Hz, " << intstring((W64)insns_per_sec, 9) << " insns/sec";

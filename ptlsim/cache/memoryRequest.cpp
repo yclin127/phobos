@@ -62,6 +62,11 @@ void MemoryRequest::init(W8 coreId,
 	refCounter_ = 0; // or maybe 1
 	opType_ = opType;
 	isData_ = !isInstruction;
+#if 1 /* yclin */
+	access = false;
+	capture = false;
+	migration = false;
+#endif
 
 	if(history) delete history;
 	history = new stringbuf();
@@ -81,6 +86,11 @@ void MemoryRequest::init(MemoryRequest *request)
 	refCounter_ = 0; // or maybe 1
 	opType_ = request->opType_;
 	isData_ = request->isData_;
+#if 1 /* yclin */
+	access = request->access;
+	capture = request->capture;
+	migration = request->migration;
+#endif
 
 	if(history) delete history;
 	history = new stringbuf();

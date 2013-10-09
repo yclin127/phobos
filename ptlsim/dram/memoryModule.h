@@ -156,12 +156,12 @@ struct Config {
         slow_bank_timing.act_to_mig    = slow_bank_timing.act_to_pre;
         slow_bank_timing.read_to_mig   = slow_bank_timing.read_to_pre;
         slow_bank_timing.write_to_mig  = slow_bank_timing.write_to_pre;
-        slow_bank_timing.mig_latency   = (tRAS+tRP)*2; /** */
+        slow_bank_timing.mig_latency   = tRAS+tRP;
 
         fast_bank_timing = slow_bank_timing;
     }
 
-    void cache_setup(int rcd_ratio, int ras_ratio, int rp_ratio, int wr_ratio, int cl_ratio) {
+    void cache_setup(int rcd_ratio, int ras_ratio, int rp_ratio, int wr_ratio, int cl_ratio, int mig_ratio) {
         if (rcd_ratio > 0) {
             fast_bank_timing.act_to_read   -= slow_bank_timing.act_to_read   / rcd_ratio;
             fast_bank_timing.act_to_write  -= slow_bank_timing.act_to_write  / rcd_ratio;
@@ -178,6 +178,10 @@ struct Config {
         if (cl_ratio > 0) {
             fast_bank_timing.read_latency  -= slow_bank_timing.read_latency  / cl_ratio;
             fast_bank_timing.write_latency -= slow_bank_timing.write_latency / cl_ratio;
+        }
+        if (mig_ratio >= 0) {
+            slow_bank_timing.mig_latency   *= mig_ratio;
+            fast_bank_timing.mig_latency   *= mig_ratio;
         }
     }
 };

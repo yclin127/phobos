@@ -59,9 +59,10 @@ W64 total_uops_executed = 0;
 W64 total_uops_committed = 0;
 W64 total_insns_committed = 0;
 #if 1 /* yclin */
-W64 total_migs_committed = 0;
-W64 total_caps_committed = 0;
 W64 total_accs_committed = 0;
+W64 total_caps_committed = 0;
+W64 total_tous_committed = 0;
+W64 total_migs_committed = 0;
 #endif
 W64 total_basic_blocks_committed = 0;
 
@@ -1397,9 +1398,24 @@ extern "C" uint8_t ptl_simulate() {
 
 	W64 seconds = W64(ticks_to_native_seconds(tsc_at_end - tsc_at_start));
 	stringbuf sb;
-	sb << endl << "Stopped after " << sim_cycle << " cycles, " << total_insns_committed << " instructions and " <<
-	   seconds << " seconds of sim time (cycle/sec: " << W64(double(sim_cycle) / double(seconds)) << " Hz, insns/sec: " << 
+#if 1 /* yclin */
+  sb << endl << "Stopped after " 
+    << sim_cycle << " cycles, " 
+    << total_insns_committed << " insns, " 
+    << total_accs_committed << " accesses, " 
+    << total_caps_committed << " captures, " 
+    << total_tous_committed << " touches, " 
+    << total_migs_committed << " migrations, " 
+    << seconds << " seconds of sim time ("
+      "cycle/sec: " << W64(double(sim_cycle) / double(seconds)) << " Hz, "
+      "insns/sec: " << W64(double(total_insns_committed) / double(seconds)) << ", "
+      "insns/cyc: " <<  float(double(total_insns_committed) / double(sim_cycle)) 
+    << ")" << endl;
+#else
+  sb << endl << "Stopped after " << sim_cycle << " cycles, " << total_insns_committed << " instructions and " <<
+     seconds << " seconds of sim time (cycle/sec: " << W64(double(sim_cycle) / double(seconds)) << " Hz, insns/sec: " << 
        W64(double(total_insns_committed) / double(seconds)) << ", insns/cyc: " <<  double(total_insns_committed) / double(sim_cycle) << ")" << endl;
+#endif
 
 	ptl_logfile << sb << flush;
 	cerr << sb << flush;
@@ -1452,9 +1468,10 @@ extern "C" void update_progress() {
 #if 1 /* yclin */
     sb << "Completed " 
       << intstring(sim_cycle, 10) << " cycles, " 
-      << intstring(total_insns_committed, 10) << " commits, " 
+      << intstring(total_insns_committed, 10) << " insns, " 
       << intstring(total_accs_committed, 8) << " accesses, " 
       << intstring(total_caps_committed, 8) << " captures, " 
+      << intstring(total_tous_committed, 6) << " touches, " 
       << intstring(total_migs_committed, 6) << " migrations";
 #else
     sb << "Completed " << intstring(sim_cycle, 13) << " cycles, " << intstring(total_insns_committed, 13) << " commits: " <<

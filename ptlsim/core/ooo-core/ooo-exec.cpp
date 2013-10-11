@@ -1759,6 +1759,9 @@ int ReorderBufferEntry::issueload(LoadStoreQueueEntry& state, Waddr& origaddr, W
     request->init(core.get_coreid(), threadid, state.physaddr << 3, idx, sim_cycle,
             false, uop.rip.rip, uop.uuid, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&core.dcache_signal);
+#if 1 /* yclin */
+    request->set_statSignal(&core.stat_signal);
+#endif
 
     bool L1hit = core.memoryHierarchy->access_cache(request);
 
@@ -2074,6 +2077,9 @@ rob_cont:
     request->init(core.get_coreid(), threadid, pteaddr, idx, sim_cycle,
             false, uop.rip.rip, uop.uuid, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&core.dcache_signal);
+#if 1 /* yclin */
+    request->set_statSignal(&core.stat_signal);
+#endif
 
     lsq->physaddr = pteaddr >> 3;
 
@@ -2232,11 +2238,6 @@ bool OooCore::dcache_wakeup(void *arg) {
     int idx = request->get_robid();
     W64 physaddr = request->get_physical_address();
     ThreadContext* thread = threads[request->get_threadid()];
-#if 1 /* yclin */
-    if (request->access) thread->thread_stats.commit.accesses++;
-    if (request->capture) thread->thread_stats.commit.captures++;
-    if (request->migration) thread->thread_stats.commit.migrations++;
-#endif
     assert(inrange(idx, 0, ROB_SIZE-1));
     ReorderBufferEntry& rob = thread->ROB[idx];
     if(logable(6)) ptl_logfile << " dcache_wakeup ", rob, " request ", *request, endl;

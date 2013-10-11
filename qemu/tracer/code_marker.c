@@ -3,7 +3,7 @@
 
 #include "tcg/tcg-op.h"
 
-static uint8_t translating;
+static uint8_t translating = 0;
 
 static uint8_t break_before;
 static uint8_t break_after;
@@ -16,6 +16,8 @@ uint32_t  ifetch_count;
 
 void code_marker_begin(void)
 {
+    if (memory_tracer_enabled == 0) return;
+
     translating = 1;
     
     break_before = 0;

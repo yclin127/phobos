@@ -44,12 +44,6 @@ bool OooCore::icache_wakeup(void *arg) {
     Memory::MemoryRequest *request = (Memory::MemoryRequest*)arg;
 
     W64 physaddr = request->get_physical_address();
-#if 1 /* yclin */
-    ThreadContext* thread = threads[request->get_threadid()];
-    if (request->access) thread->thread_stats.commit.accesses++;
-    if (request->capture) thread->thread_stats.commit.captures++;
-    if (request->migration) thread->thread_stats.commit.migrations++;
-#endif
     if(logable(99)) ptl_logfile << " icache_wakeup addr ", (void*) physaddr, endl;
     foreach (i, threadcount) {
         ThreadContext* thread = threads[i];
@@ -153,6 +147,9 @@ itlb_walk_finish:
     request->init(core.get_coreid(), threadid, pteaddr, 0, sim_cycle,
             true, 0, 0, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&core.icache_signal);
+#if 1 /* yclin */
+    request->set_statSignal(&core.stat_signal);
+#endif
 
     waiting_for_icache_fill_physaddr = floor(pteaddr, ICACHE_FETCH_GRANULARITY);
     waiting_for_icache_fill = 1;
@@ -616,6 +613,9 @@ bool ThreadContext::fetch() {
             request->init(core.get_coreid(), threadid, physaddr, 0, sim_cycle,
                     true, 0, 0, Memory::MEMORY_OP_READ);
             request->set_coreSignal(&core.icache_signal);
+#if 1 /* yclin */
+            request->set_statSignal(&core.stat_signal);
+#endif
 
             hit = core.memoryHierarchy->access_cache(request);
 
@@ -2195,6 +2195,9 @@ int ReorderBufferEntry::commit() {
                     sim_cycle, false, uop.rip.rip, uop.uuid,
                     Memory::MEMORY_OP_WRITE);
             request->set_coreSignal(&core.dcache_signal);
+#if 1 /* yclin */
+            request->set_statSignal(&core.stat_signal);
+#endif
 
             assert(core.memoryHierarchy->access_cache(request));
             assert(lsq->virtaddr > 0xfff);

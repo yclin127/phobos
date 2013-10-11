@@ -223,12 +223,14 @@ namespace OOO_CORE_MODEL {
             StatEquation<W64, double, StatObjFormulaDiv> uipc;
             StatEquation<W64, double, StatObjFormulaDiv> ipc;
 #if 1 /* yclin */
-            StatObj<W64> accesses;
-            StatObj<W64> captures;
-            StatObj<W64> migrations;
             StatEquation<W64, double, StatObjFormulaDiv> api;
             StatEquation<W64, double, StatObjFormulaDiv> cpa;
-            StatEquation<W64, double, StatObjFormulaDiv> mpi;
+            StatEquation<W64, double, StatObjFormulaDiv> mpt;
+            StatEquation<W64, double, StatObjFormulaDiv> mpa;
+            StatObj<W64> accesses;
+            StatObj<W64> captures;
+            StatObj<W64> touches;
+            StatObj<W64> migrations;
 #endif
 
             struct result : public Statable
@@ -314,12 +316,14 @@ namespace OOO_CORE_MODEL {
                   , uipc("uipc", this)
                   , ipc("ipc", this)
 #if 1 /* yclin */
-                  , accesses("acc", this)
-                  , captures("cap", this)
-                  , migrations("mig", this)
                   , api("api", this)
                   , cpa("cpa", this)
-                  , mpi("mpi", this)
+                  , mpt("mpt", this)
+                  , mpa("mpa", this)
+                  , accesses("accesses", this)
+                  , captures("captures", this)
+                  , touches("touches", this)
+                  , migrations("migrations", this)
 #endif
                   , result(this)
                   , fail(this)
@@ -330,7 +334,8 @@ namespace OOO_CORE_MODEL {
 #if 1 /* yclin */
                 api.enable_summary();
                 cpa.enable_summary();
-                mpi.enable_summary();
+                mpt.enable_summary();
+                mpa.enable_summary();
 #endif
             }
         } commit;

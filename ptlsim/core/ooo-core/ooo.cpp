@@ -143,8 +143,11 @@ ThreadContext::ThreadContext(OooCore& core_, W8 threadid_, Context& ctx_)
     thread_stats.commit.cpa.add_elem(&thread_stats.commit.captures);
     thread_stats.commit.cpa.add_elem(&thread_stats.commit.accesses);
 
-    thread_stats.commit.mpi.add_elem(&thread_stats.commit.migrations);
-    thread_stats.commit.mpi.add_elem(&thread_stats.commit.insns);
+    thread_stats.commit.mpt.add_elem(&thread_stats.commit.migrations);
+    thread_stats.commit.mpt.add_elem(&thread_stats.commit.touches);
+
+    thread_stats.commit.mpa.add_elem(&thread_stats.commit.migrations);
+    thread_stats.commit.mpa.add_elem(&thread_stats.commit.accesses);
 #endif
 
     thread_stats.set_default_stats(user_stats);
@@ -271,7 +274,6 @@ OooCore::OooCore(BaseMachine& machine_, W8 num_threads,
     /* Setup Cache Signals */
     stringbuf sig_name;
     sig_name << core_name << "-dcache-wakeup";
-
     dcache_signal.set_name(sig_name.buf);
     dcache_signal.connect(signal_mem_ptr(*this,
                 &OooCore::dcache_wakeup));
@@ -281,6 +283,14 @@ OooCore::OooCore(BaseMachine& machine_, W8 num_threads,
     icache_signal.set_name(sig_name.buf);
     icache_signal.connect(signal_mem_ptr(*this,
                 &OooCore::icache_wakeup));
+
+# if 1 /* yclin */
+    sig_name.reset();
+    sig_name << core_name << "-stat-wakeup";
+    stat_signal.set_name(sig_name.buf);
+    stat_signal.connect(signal_mem_ptr(*this,
+                &OooCore::stat_wakeup));
+#endif
 
 	sig_name.reset();
 	sig_name << core_name << "-run-cycle";
@@ -302,6 +312,20 @@ OooCore::OooCore(BaseMachine& machine_, W8 num_threads,
 
     init_luts();
 }
+
+#if 1 /* yclin */
+bool OooCore::stat_wakeup(void *arg) {
+    Memory::MemoryRequest *request = (Memory::MemoryRequest*)arg;
+
+    ThreadContext* thread = threads[request->get_threadid()];
+    if (request->access) thread->thread_stats.commit.accesses += 1;
+    if (request->capture) thread->thread_stats.commit.captures += 1;
+    if (request->touch) thread->thread_stats.commit.touches += 1;
+    if (request->migration) thread->thread_stats.commit.migrations += 1;
+
+    return true;
+}
+#endif
 
 /**
  * @brief Initialize OOO core variables and structures

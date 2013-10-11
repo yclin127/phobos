@@ -168,8 +168,9 @@ class MemoryMapping
         int mat_ratio;
         int rep_serial;
         
-        int **remapping_forward;
-        int **remapping_backward;
+        short **remapping_forward;
+        short **remapping_backward;
+        char **remapping_touch;
         
     public:
         MemoryMapping(Config &config);
@@ -178,6 +179,7 @@ class MemoryMapping
         int channel(W64 address);
         void translate(W64 address, Coordinates &coordinates);
 
+        bool touch(Coordinates &coordinates);
         bool detect(Coordinates &coordinates);
         void promote(Coordinates &coordinates);
 };

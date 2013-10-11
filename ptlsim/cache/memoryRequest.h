@@ -66,10 +66,12 @@ class MemoryRequest: public selfqueuelink
 			opType_ = MEMORY_OP_READ;
 			isData_ = 0;
 			history = new stringbuf();
-            coreSignal_ = NULL;
+			coreSignal_ = NULL;
 #if 1 /* yclin */
+			statSignal_ = NULL;
 			access = false;
 			capture = false;
+			touch = false;
 			migration = false;
 #endif
 		}
@@ -135,26 +137,23 @@ class MemoryRequest: public selfqueuelink
 
 		stringbuf& get_history() { return *history; }
 
-        bool is_kernel() {
-            // based on owner RIP value
-            if(bits(ownerRIP_, 48, 16) != 0) {
-                return true;
-            }
-            return false;
-        }
+		bool is_kernel() {
+			// based on owner RIP value
+			if(bits(ownerRIP_, 48, 16) != 0) {
+				return true;
+			}
+			return false;
+		}
 
-        void set_coreSignal(Signal* signal)
-        {
-            coreSignal_ = signal;
-        }
+		Signal* get_coreSignal() { return coreSignal_; }
+		void set_coreSignal(Signal* signal) { coreSignal_ = signal; }
 
-        Signal* get_coreSignal()
-        {
-            return coreSignal_;
-        }
+#if 1 /* yclin */
+		Signal* get_statSignal() { return statSignal_; }
+		void set_statSignal(Signal* signal) { statSignal_ = signal; }
+#endif
 
-		ostream& print(ostream& os) const
-		{
+		ostream& print(ostream& os) const {
 			os << "Memory Request: core[", coreId_, "] ";
 			os << "thread[", threadId_, "] ";
 			os << "address[0x", hexstring(physicalAddress_, 48), "] ";
@@ -166,15 +165,21 @@ class MemoryRequest: public selfqueuelink
 			os << "ownerUUID[", ownerUUID_, "] ";
 			os << "ownerRIP[", (void*)ownerRIP_, "] ";
 			os << "History[ " << *history << "] ";
-            if(coreSignal_) {
-                os << "Signal[ " << coreSignal_->get_name() << "] ";
-            }
+			if (coreSignal_) {
+				os << "coreSignal[ " << coreSignal_->get_name() << "] ";
+			}
+#if 1 /* yclin */
+			if (statSignal_) {
+				os << "statSignal[ " << statSignal_->get_name() << "] ";
+			}
+#endif
 			return os;
 		}
-
+		
 #if 1 /* yclin */
 		bool access;
 		bool capture;
+		bool touch;
 		bool migration;
 #endif
 
@@ -190,7 +195,10 @@ class MemoryRequest: public selfqueuelink
 		int refCounter_;
 		OP_TYPE opType_;
 		stringbuf *history;
-        Signal *coreSignal_;
+		Signal *coreSignal_;
+#if 1 /* yclin */
+		Signal *statSignal_;
+#endif
 
 };
 

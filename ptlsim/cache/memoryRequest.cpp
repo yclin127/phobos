@@ -63,8 +63,10 @@ void MemoryRequest::init(W8 coreId,
 	opType_ = opType;
 	isData_ = !isInstruction;
 #if 1 /* yclin */
+	statSignal_ = NULL;
 	access = false;
 	capture = false;
+	touch = false;
 	migration = false;
 #endif
 
@@ -87,9 +89,11 @@ void MemoryRequest::init(MemoryRequest *request)
 	opType_ = request->opType_;
 	isData_ = request->isData_;
 #if 1 /* yclin */
-	access = request->access;
-	capture = request->capture;
-	migration = request->migration;
+	statSignal_ = request->statSignal_;
+	access = false;
+	capture = false;
+	touch = false;
+	migration = false;
 #endif
 
 	if(history) delete history;

@@ -43,14 +43,17 @@ MemoryMapping::MemoryMapping(Config &config) :
     mapping.index.shift   = shift; shift +=
     mapping.index.width   = log_2(config.indexcount);
     
-    remapping_forward = new int*[1<<mapping.group.width];
-    remapping_backward = new int*[1<<mapping.group.width];
+    remapping_forward = new short*[1<<mapping.group.width];
+    remapping_backward = new short*[1<<mapping.group.width];
+    remapping_touch = new char*[1<<mapping.group.width];
     for (int i=0; i<(1<<mapping.group.width); i+=1) {
-        remapping_forward[i] = new int[1<<mapping.index.width];
-        remapping_backward[i] = new int[1<<mapping.index.width];
+        remapping_forward[i] = new short[1<<mapping.index.width];
+        remapping_backward[i] = new short[1<<mapping.index.width];
+        remapping_touch[i] = new char[1<<mapping.index.width];
         for (int j=0; j<(1<<mapping.index.width); j+=1) {
             remapping_forward[i][j] = j;
             remapping_backward[i][j] = j;
+            remapping_touch[i][j] = 0;
         }
     }
 }
@@ -79,6 +82,16 @@ void MemoryMapping::translate(W64 address, Coordinates &coordinates)
     coordinates.index   = mapping.index.value(address);
     
     coordinates.place   = remapping_forward[coordinates.group][coordinates.index];
+}
+
+bool MemoryMapping::touch(Coordinates &coordinates)
+{
+    if (remapping_touch[coordinates.group][coordinates.index] == 0) {
+        remapping_touch[coordinates.group][coordinates.index] = 1;
+        return true;
+    }
+
+    return false;
 }
 
 bool MemoryMapping::detect(Coordinates &coordinates)
@@ -201,15 +214,26 @@ bool MemoryController::addTransaction(long clock, RequestEntry *request)
     }
 
     // update statistics
-    total_accs_committed += 1;
-    request->request->access = true;
-    if (coordinates.place % asym_mat_ratio == 0) {
-        total_caps_committed += 1;
-        request->request->capture = true;
-    }
-    if (detection) {
-        total_migs_committed += 1;
-        request->request->migration = true;
+    if (queueEntry->type == COMMAND_read) {
+        total_accs_committed += 1;
+        request->request->access = true;
+        if (coordinates.place % asym_mat_ratio == 0) {
+            total_caps_committed += 1;
+            request->request->capture = true;
+        }
+        if (mapping.touch(coordinates)) {
+            total_tous_committed += 1;
+            request->request->touch = true;
+        }
+        if (detection) {
+            total_migs_committed += 1;
+            request->request->migration = true;
+        }
+
+        Signal* signal = request->request->get_statSignal();
+        if (signal) {
+            signal->emit(request->request);
+        }
     }
     
     return true;

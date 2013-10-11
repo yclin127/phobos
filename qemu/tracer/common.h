@@ -9,7 +9,7 @@
 #define __trim(x,b,o) (((x)>>(o))&(__size(b)-1))
 #define __cross(x,y,b) ((x)^(y)>>(b))
 
-#define IFETCH_TABLE_SIZE 256
+#define IFETCH_TABLE_SIZE (1<<12)
 
 // between memory tracer & cache filter
 #define CURSOR_COUNT 2
@@ -50,5 +50,7 @@ typedef struct {
     void   *head;
     void   *tail;
 } batch_t;
+
+extern int memory_tracer_enabled;
 
 #endif // __CONFIG_H__

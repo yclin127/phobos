@@ -109,7 +109,10 @@ struct Config {
     ) {
         ranksize = (long)SIZE<<20;
         
-        assert(ranksize%BANK == 0);
+        assert(is_pow_2(ranksize));
+        assert(is_pow_2(BANK));
+        assert(ranksize % BANK == 0);
+        
         devicecount = DEVICE;
         channelcount = -1;
         rankcount = -1;

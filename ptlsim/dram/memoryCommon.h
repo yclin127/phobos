@@ -92,10 +92,13 @@ struct BitField {
     }
 };
 
-inline int log_2(int value) {
+inline int log_2(long value) {
     int result;
-    for (result=0; (1<<result)<value; result+=1);
+    for (result=0; (1L<<result)<value; result+=1);
     return result;
+}
+inline bool is_pow_2(long x) {
+    return x > 0 && (x & (x-1)) == 0;
 }
 
 struct BitMapping {

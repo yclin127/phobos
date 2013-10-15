@@ -512,10 +512,14 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     {
         assert(asym_det_threshold > 0);
         assert(asym_det_size > 0 && asym_det_size % 4 == 0);
-        assert(asym_mat_ratio > 0);
-        assert(asym_mat_group > 0 && asym_mat_group % asym_mat_ratio == 0);
+        assert(is_pow_2(asym_mat_ratio));
+        assert(is_pow_2(asym_mat_group));
+        assert(asym_mat_group % asym_mat_ratio == 0);
 
         dramconfig = *get_dram_config(type);
+
+        assert(is_pow_2(ram_size));
+        assert(is_pow_2(channelcount));
         
         dramconfig.channelcount = channelcount;
         dramconfig.rankcount    = ram_size / dramconfig.channelcount / dramconfig.ranksize;
@@ -523,6 +527,12 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
                                   dramconfig.columncount / dramconfig.offsetcount;
         dramconfig.groupcount   = dramconfig.rowcount / asym_mat_group;
         dramconfig.indexcount   = asym_mat_group;
+
+        //assert(is_pow_2(dramconfig.channelcount));
+        assert(is_pow_2(dramconfig.rankcount));
+        assert(is_pow_2(dramconfig.rowcount));
+        assert(is_pow_2(dramconfig.groupcount));
+        //assert(is_pow_2(dramconfig.indexcount));
         
         dramconfig.asym_det_threshold = asym_det_threshold;
         dramconfig.asym_det_size = asym_det_size;

@@ -98,7 +98,7 @@ void MemoryHierarchy::clock()
 	}
 
 #if 1 /* yclin */
-	memoryController_->clock();
+	memoryController_->cycle();
 #endif
 
 	Event *event;

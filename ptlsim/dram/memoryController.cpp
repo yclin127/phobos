@@ -601,6 +601,11 @@ bool MemoryControllerHub::access_completed_cb(void *arg)
 {
     RequestEntry *queueEntry = (RequestEntry*)arg;
     
+    Signal* signal = queueEntry->request->get_statSignal();
+    if (signal) {
+        signal->emit(queueEntry->request);
+    }
+    
     if(!queueEntry->annuled) {
 
         /* Send response back to cache */
@@ -667,39 +672,31 @@ void MemoryControllerHub::dispatch(long clock)
     foreach_list_mutable(pendingRequests_.list(), request, entry, nextentry) {
         if (!request->translated) {
             if (!mapping->translate(request->coordinates)) continue;
-            request->detected = mapping->detect(request->coordinates);
             request->translated = true;
-        }
-        if (!request->issued) {
-            if (!controller[request->coordinates.channel]->
-                addTransaction(clock, request->type, request->coordinates, request)) break;
-            request->issued = true;
+            request->detected = mapping->detect(request->coordinates);
+            
+            if (mapping->touch(request->coordinates)) {
+                total_tous_committed += 1;
+                request->request->touch = true;
+            }
         }
         if (request->detected) {
             if (!mapping->promote(request->coordinates)) continue;
             request->detected = false;
+            
+            total_migs_committed += 1;
+            request->request->migration = true;
         }
-    
-        // update statistics
-        /*if (queueEntry->type == COMMAND_read)*/ {
+        if (!request->issued) {
+            if (!controller[request->coordinates.channel]->
+                addTransaction(clock, request->type, request->coordinates, request)) continue;
+            request->issued = true;
+            
             total_accs_committed += 1;
             request->request->access = true;
             if (request->coordinates.place % dramconfig.asym_mat_ratio == 0) {
                 total_caps_committed += 1;
                 request->request->capture = true;
-            }
-            if (mapping->touch(request->coordinates)) {
-                total_tous_committed += 1;
-                request->request->touch = true;
-            }
-            if (request->detected) {
-                total_migs_committed += 1;
-                request->request->migration = true;
-            }
-
-            Signal* signal = request->request->get_statSignal();
-            if (signal) {
-                signal->emit(request->request);
             }
         }
     }

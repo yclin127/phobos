@@ -108,7 +108,7 @@ class Controller
         }
         
 #if 1 // yclin
-        virtual void clock() {}
+        virtual void cycle() {}
 #endif
 
 		virtual bool handle_interconnect_cb(void* arg)=0;

@@ -20,15 +20,23 @@ struct Policy {
 
 struct RequestEntry : public FixStateListObject
 {
+    CommandType type;
+    Coordinates coordinates;
+
     MemoryRequest *request;
     Controller *source;
+
     bool annuled;
+    bool translated;
     bool issued;
+    bool detected;
 
     void init() {
         request = NULL;
         annuled = false;
+        translated = false;
         issued = false;
+        detected = false;
     }
 
     ostream& print(ostream &os) const {
@@ -47,6 +55,7 @@ struct TransactionEntry : public FixStateListObject
 {
     CommandType type; 
     Coordinates coordinates;
+
     RequestEntry *request;
 
     void init() {
@@ -56,9 +65,10 @@ struct TransactionEntry : public FixStateListObject
 
 struct CommandEntry : public FixStateListObject
 {
-    RequestEntry *request;
     CommandType type;
     Coordinates coordinates;
+
+    RequestEntry *request;
     
     long issueTime;
     long finishTime;
@@ -80,14 +90,15 @@ class AssociativeTags
             DataType data;
         };
         
-        int set_count, way_count;
+        int set_count, way_count, line_shift;
         Entry *entries;
         Entry **sets;
         
     public:
-        AssociativeTags(int nset, int nway) {
+        AssociativeTags(int nset, int nway, int shift) {
             set_count = nset;
             way_count = nway;
+            line_shift = shift;
             entries = new Entry[set_count*way_count];
             sets    = new Entry*[set_count];
             
@@ -106,7 +117,19 @@ class AssociativeTags
             delete [] sets;
         }
         
-        DataType& lookup(W64 tag, W64 &oldtag) {
+        bool probe(W64 tag) {
+            int index = (tag >> line_shift) % set_count;
+            Entry *current = sets[index];
+            while (current != NULL) {
+                if (current->tag == tag) {
+                    return true;
+                }
+                current = current->next;
+            }
+            return false;
+        }
+        
+        DataType& access(W64 tag, W64 &oldtag) {
             int index = tag % set_count;
             Entry *previous = NULL;
             Entry *current = sets[index];
@@ -160,7 +183,7 @@ class AssociativeTags
 class MemoryMapping
 {
     private:
-        BitMapping mapping;
+        BitFields bitfields;
         
         AssociativeTags<int> det_counter;
         int det_threshold;
@@ -168,20 +191,29 @@ class MemoryMapping
         int mat_ratio;
         int rep_serial;
         
-        short **remapping_forward;
-        short **remapping_backward;
-        char **remapping_touch;
+        AssociativeTags<int> map_cache;
+        short **mapping_forward;
+        short **mapping_backward;
+        char **mapping_touch;
+
+        W64 make_forward_tag(int group, int index) {
+            return (((W64)((group<<1)+0) << bitfields.index.width) | index) << 0;
+        }
+        W64 make_backward_tag(int group, int place) {
+            return (((W64)((group<<1)+1) << bitfields.index.width) | place) << 0;
+        }
         
     public:
         MemoryMapping(Config &config);
         virtual ~MemoryMapping();
         
         int channel(W64 address);
-        void translate(W64 address, Coordinates &coordinates);
+        void extract(W64 address, Coordinates &coordinates);
+        bool translate(Coordinates &coordinates);
 
         bool touch(Coordinates &coordinates);
         bool detect(Coordinates &coordinates);
-        void promote(Coordinates &coordinates);
+        bool promote(Coordinates &coordinates);
 };
 
 
@@ -189,14 +221,11 @@ class MemoryMapping
 class MemoryController
 {
     private:
-        MemoryMapping &mapping;
-        Policy &policy;
+        int max_row_hits;
+        int max_row_idle;
     
         int asym_mat_group;
         int asym_mat_ratio;
-
-        bool detection;
-        Coordinates migration;
 
         int channel_id;
     
@@ -212,13 +241,11 @@ class MemoryController
         
         Channel *channel;
         
-        FixStateList<RequestEntry, MEM_REQ_NUM> pendingRequests_;
         FixStateList<TransactionEntry, MEM_TRANS_NUM> pendingTransactions_;
         FixStateList<CommandEntry, MEM_CMD_NUM> pendingCommands_;
         
-        bool addTransaction(long clock, RequestEntry *request);
-        bool addMigration(long clock, Coordinates *coordinates);
-        bool addCommand(long clock, CommandType type, Coordinates *coordinates, RequestEntry *request);
+        bool addTransaction(long clock, CommandType type, Coordinates &coordinates, RequestEntry *request);
+        bool addCommand(long clock, CommandType type, Coordinates &coordinates, RequestEntry *request);
         
         void schedule(long clock, Signal &accessCompleted_);
 };
@@ -241,6 +268,9 @@ class MemoryControllerHub : public Controller
         long clock_num, clock_den;
         long clock_rem, clock_mem;
         
+        FixStateList<RequestEntry, MEM_REQ_NUM> pendingRequests_;
+        void dispatch(long clock);
+        
     public:
         MemoryControllerHub(W8 coreid, const char *name, MemoryHierarchy *memoryHierarchy, int type);
         virtual ~MemoryControllerHub();
@@ -251,7 +281,7 @@ class MemoryControllerHub : public Controller
         bool access_completed_cb(void *arg);
         bool wait_interconnect_cb(void *arg);
         
-        void clock();
+        void cycle();
         
         void annul_request(MemoryRequest *request);
         void dump_configuration(YAML::Emitter &out) const;

@@ -81,10 +81,11 @@ struct Config {
     int groupcount;
     int indexcount;
     
+    int asym_det_threshold;
+    int asym_det_cache_size;
+    int asym_map_cache_size;
     int asym_mat_group;
     int asym_mat_ratio;
-    int asym_det_threshold;
-    int asym_det_size;
     
     float clock;
     

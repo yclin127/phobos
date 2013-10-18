@@ -18,7 +18,7 @@ enum CommandType {
     COMMAND_powerup,
     COMMAND_powerdown,
 };
-    
+
 inline const char* toString(CommandType type) {
     static const char* name[] = {
         "act",
@@ -101,7 +101,7 @@ inline bool is_pow_2(long x) {
     return x > 0 && (x & (x-1)) == 0;
 }
 
-struct BitMapping {
+struct BitFields {
     BitField channel;
     BitField rank;
     BitField bank;

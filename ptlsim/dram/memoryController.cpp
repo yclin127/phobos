@@ -48,14 +48,19 @@ MemoryMapping::MemoryMapping(Config &config) :
     bitfields.index.shift   = shift; shift +=
     bitfields.index.width   = log_2(config.indexcount);
     
+    mapping_migtime = new long*[1<<bitfields.group.width];
     mapping_forward = new short*[1<<bitfields.group.width];
     mapping_backward = new short*[1<<bitfields.group.width];
     mapping_touch = new char*[1<<bitfields.group.width];
+    
     for (int i=0; i<(1<<bitfields.group.width); i+=1) {
+        mapping_migtime[i] = new long[1<<bitfields.index.width];
         mapping_forward[i] = new short[1<<bitfields.index.width];
         mapping_backward[i] = new short[1<<bitfields.index.width];
         mapping_touch[i] = new char[1<<bitfields.index.width];
+        
         for (int j=0; j<(1<<bitfields.index.width); j+=1) {
+            mapping_migtime[i][j] = -1;
             mapping_forward[i][j] = j;
             mapping_backward[i][j] = j;
             mapping_touch[i][j] = 0;
@@ -113,34 +118,24 @@ bool MemoryMapping::detect(Coordinates &coordinates)
 {
     W64 tag, oldtag;
     tag = make_forward_tag(coordinates.group, coordinates.index);
-    DetectEntry& entry = det_counter.access(tag, oldtag);
+    int& count = det_counter.access(tag, oldtag);
     if (oldtag != tag) {
-        entry.count = 0;
-        entry.since = -1;
+        count = 0;
     }
-    entry.count += 1;
+    count += 1;
 
-    return entry.count == det_threshold && coordinates.place % mat_ratio != 0;
+    return count == det_threshold && coordinates.place % mat_ratio != 0;
 }
 
-bool MemoryMapping::kill(Coordinates &coordinates)
+bool MemoryMapping::kill(long clock, Coordinates &coordinates)
 {
-    W64 tag, oldtag;
-    tag = make_forward_tag(coordinates.group, coordinates.index);
-    DetectEntry& entry = det_counter.access(tag, oldtag);
-    assert(oldtag == tag);
+    long migtime = mapping_migtime[coordinates.group][coordinates.index];
 
-    return entry.since != -1 && coordinates.place % mat_ratio == 0;
+    return migtime != -1 && clock - migtime < 1000000 && coordinates.place % mat_ratio == 0;
 }
 
-bool MemoryMapping::promote(Coordinates &coordinates)
+bool MemoryMapping::promote(long clock, Coordinates &coordinates)
 {
-    W64 tag, oldtag;
-    tag = make_forward_tag(coordinates.group, coordinates.index);
-    DetectEntry& entry = det_counter.access(tag, oldtag);
-    assert(oldtag == tag);
-    entry.since = 0;
-    
     int group = coordinates.group;
     int index = coordinates.index;
     int place = rep_serial;
@@ -153,6 +148,9 @@ bool MemoryMapping::promote(Coordinates &coordinates)
     
     mapping_backward[group][place] = mapping_backward[group][placeP];
     mapping_backward[group][placeP] = indexP;
+    
+    mapping_migtime[group][index] = clock;
+    mapping_migtime[group][indexP] = clock;
 
     rep_serial = (rep_serial + mat_ratio) % mat_group;
     
@@ -708,7 +706,7 @@ void MemoryControllerHub::dispatch(long clock)
         }
         
         if (request->detected) {
-            if (!mapping->promote(request->coordinates)) continue;
+            if (!mapping->promote(clock, request->coordinates)) continue;
             request->detected = false;
             // stat
             total_migs_committed += 1;
@@ -726,7 +724,7 @@ void MemoryControllerHub::dispatch(long clock)
                 total_caps_committed += 1;
                 if (mem_stat) mem_stat->captures += 1;
             }
-            if (mapping->kill(request->coordinates)) {
+            if (mapping->kill(clock, request->coordinates)) {
                 total_kils_committed += 1;
                 if (mem_stat) mem_stat->kills += 1;
             }

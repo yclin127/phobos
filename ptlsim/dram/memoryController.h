@@ -180,18 +180,14 @@ class MemoryMapping
     private:
         BitFields bitfields;
         
-        struct DetectEntry {
-            int count;
-            int since;
-        };
-        
-        AssociativeTags<DetectEntry> det_counter;
+        AssociativeTags<int> det_counter;
         int det_threshold;
         int mat_group;
         int mat_ratio;
         int rep_serial;
         
         AssociativeTags<int> map_cache;
+        long **mapping_migtime;
         short **mapping_forward;
         short **mapping_backward;
         char **mapping_touch;
@@ -213,8 +209,8 @@ class MemoryMapping
 
         bool touch(Coordinates &coordinates);
         bool detect(Coordinates &coordinates);
-        bool kill(Coordinates &coordinates);
-        bool promote(Coordinates &coordinates);
+        bool kill(long clock, Coordinates &coordinates);
+        bool promote(long clock, Coordinates &coordinates);
 };
 
 

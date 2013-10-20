@@ -61,6 +61,7 @@ W64 total_insns_committed = 0;
 #if 1 /* yclin */
 W64 total_accs_committed = 0;
 W64 total_caps_committed = 0;
+W64 total_kils_committed = 0;
 W64 total_tous_committed = 0;
 W64 total_migs_committed = 0;
 #endif
@@ -1404,6 +1405,7 @@ extern "C" uint8_t ptl_simulate() {
     << total_insns_committed << " insns, " 
     << total_accs_committed << " accesses, " 
     << total_caps_committed << " captures, " 
+    << total_kils_committed << " kills, " 
     << total_tous_committed << " touches, " 
     << total_migs_committed << " migrations, " 
     << seconds << " seconds of sim time ("
@@ -1471,6 +1473,7 @@ extern "C" void update_progress() {
       << intstring(total_insns_committed, 10) << " insns, " 
       << intstring(total_accs_committed, 8) << " accesses, " 
       << intstring(total_caps_committed, 8) << " captures, " 
+      << intstring(total_kils_committed, 8) << " kills, " 
       << intstring(total_tous_committed, 6) << " touches, " 
       << intstring(total_migs_committed, 6) << " migrations";
 #else

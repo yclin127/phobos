@@ -172,13 +172,20 @@ class AssociativeTags
 };
 
 
+#define MAPPING_TAG_SHIFT 0
+#define MAPPING_TAG_SIZE (1<<(MAPPING_TAG_SHIFT))
 
 class MemoryMapping
 {
     private:
         BitFields bitfields;
         
-        AssociativeTags<int> det_counter;
+        struct DetectEntry {
+            int count;
+            int since;
+        };
+        
+        AssociativeTags<DetectEntry> det_counter;
         int det_threshold;
         int mat_group;
         int mat_ratio;
@@ -190,10 +197,10 @@ class MemoryMapping
         char **mapping_touch;
 
         W64 make_forward_tag(int group, int index) {
-            return (((W64)((group<<1)+0) << bitfields.index.width) | index) << 0;
+            return (((W64)((group<<1)+0) << bitfields.index.width) | index) << MAPPING_TAG_SHIFT;
         }
         W64 make_backward_tag(int group, int place) {
-            return (((W64)((group<<1)+1) << bitfields.index.width) | place) << 0;
+            return (((W64)((group<<1)+1) << bitfields.index.width) | place) << MAPPING_TAG_SHIFT;
         }
         
     public:
@@ -206,6 +213,7 @@ class MemoryMapping
 
         bool touch(Coordinates &coordinates);
         bool detect(Coordinates &coordinates);
+        bool kill(Coordinates &coordinates);
         bool promote(Coordinates &coordinates);
 };
 

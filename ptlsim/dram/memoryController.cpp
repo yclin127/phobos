@@ -18,7 +18,7 @@ using namespace DRAM;
 
 
 MemoryMapping::MemoryMapping(Config &config) : 
-    det_counter(config.asym_det_cache_size/4, 4, 0),
+    det_counter(config.asym_det_cache_size/4, 4, MAPPING_TAG_SHIFT),
     map_cache(config.asym_map_cache_size/4, 4, log_2(config.offsetcount))
 {
     det_threshold = config.asym_det_threshold;
@@ -113,15 +113,34 @@ bool MemoryMapping::detect(Coordinates &coordinates)
 {
     W64 tag, oldtag;
     tag = make_forward_tag(coordinates.group, coordinates.index);
-    int& count = det_counter.access(tag, oldtag);
-    if (oldtag != tag) count = 0;
-    count += 1;
+    DetectEntry& entry = det_counter.access(tag, oldtag);
+    if (oldtag != tag) {
+        entry.count = 0;
+        entry.since = -1;
+    }
+    entry.count += 1;
 
-    return count == det_threshold && coordinates.place % mat_ratio != 0;
+    return entry.count == det_threshold && coordinates.place % mat_ratio != 0;
+}
+
+bool MemoryMapping::kill(Coordinates &coordinates)
+{
+    W64 tag, oldtag;
+    tag = make_forward_tag(coordinates.group, coordinates.index);
+    DetectEntry& entry = det_counter.access(tag, oldtag);
+    assert(oldtag == tag);
+
+    return entry.since != -1 && coordinates.place % mat_ratio == 0;
 }
 
 bool MemoryMapping::promote(Coordinates &coordinates)
 {
+    W64 tag, oldtag;
+    tag = make_forward_tag(coordinates.group, coordinates.index);
+    DetectEntry& entry = det_counter.access(tag, oldtag);
+    assert(oldtag == tag);
+    entry.since = 0;
+    
     int group = coordinates.group;
     int index = coordinates.index;
     int place = rep_serial;
@@ -665,6 +684,7 @@ bool MemoryControllerHub::wait_interconnect_cb(void *arg)
             memoryHierarchy_->set_controller_full(this, false);
         }
     }
+    
     return true;
 }
 
@@ -672,6 +692,7 @@ void MemoryControllerHub::dispatch(long clock)
 {
     RequestEntry *request;
     MemoryStatable *mem_stat;
+
     foreach_list_mutable(pendingRequests_.list(), request, entry, nextentry) {
         mem_stat = request->request->get_memoryStat();
 
@@ -685,6 +706,7 @@ void MemoryControllerHub::dispatch(long clock)
                 if (mem_stat) mem_stat->touches += 1;
             }
         }
+        
         if (request->detected) {
             if (!mapping->promote(request->coordinates)) continue;
             request->detected = false;
@@ -692,6 +714,7 @@ void MemoryControllerHub::dispatch(long clock)
             total_migs_committed += 1;
             if (mem_stat) mem_stat->migrations += 1;
         }
+        
         if (!request->issued) {
             MemoryController *mc = controller[request->coordinates.channel];
             if (!mc->addTransaction(clock, request->type, request->coordinates, request)) continue;
@@ -702,6 +725,10 @@ void MemoryControllerHub::dispatch(long clock)
             if (request->coordinates.place % dramconfig.asym_mat_ratio == 0) {
                 total_caps_committed += 1;
                 if (mem_stat) mem_stat->captures += 1;
+            }
+            if (mapping->kill(request->coordinates)) {
+                total_kils_committed += 1;
+                if (mem_stat) mem_stat->kills += 1;
             }
         }
     }

@@ -12,6 +12,8 @@
 #include <machine.h>
 #include "memoryModule.h"
 
+#include <memoryStat.h>
+
 using namespace DRAM;
 
 
@@ -138,10 +140,10 @@ bool MemoryMapping::promote(Coordinates &coordinates)
     return true;
 }
 
-MemoryController::MemoryController(Config &config, MemoryMapping &mapping, Policy &policy, int chid)
+MemoryController::MemoryController(Config &config, MemoryMapping &mapping, int chid)
 {
-    max_row_hits = policy.max_row_hits;
-    max_row_idle = policy.max_row_idle;
+    max_row_hits = config.max_row_hits;
+    max_row_idle = config.max_row_idle;
         
     asym_mat_group = config.asym_mat_group;
     asym_mat_ratio = config.asym_mat_ratio;
@@ -396,6 +398,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
 {
     memoryHierarchy_->add_cache_mem_controller(this, true);
     
+    int max_row_hits, max_row_idle;
     int asym_det_threshold, asym_det_cache_size;
     int asym_map_cache_size;
     int asym_mat_ratio, asym_mat_group;
@@ -407,8 +410,9 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         BaseMachine &machine = memoryHierarchy_->get_machine();
 #define option(var,opt,val) machine.get_option(name, opt, var) || (var = val)
         option(channelcount, "channel", 1);
-        option(policy.max_row_hits, "max_row_hits", 4);
-        option(policy.max_row_idle, "max_row_idle", 0);
+        
+        option(max_row_hits, "max_row_hits", 4);
+        option(max_row_idle, "max_row_idle", 0);
 
         option(asym_det_threshold, "asym_det_threshold", 4);
         option(asym_det_cache_size, "asym_det_cache_size", 1024);
@@ -452,6 +456,9 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         assert(is_pow_2(dramconfig.groupcount));
         //assert(is_pow_2(dramconfig.indexcount));
         
+        dramconfig.max_row_hits = max_row_hits;
+        dramconfig.max_row_idle = max_row_idle;
+        
         dramconfig.asym_det_threshold = asym_det_threshold;
         dramconfig.asym_det_cache_size = asym_det_cache_size;
         dramconfig.asym_map_cache_size = asym_map_cache_size;
@@ -472,7 +479,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     
     controller = new MemoryController*[channelcount];
     for (int channel=0; channel<channelcount; ++channel) {
-        controller[channel] = new MemoryController(dramconfig, *mapping, policy, channel);
+        controller[channel] = new MemoryController(dramconfig, *mapping, channel);
     }
     
     SET_SIGNAL_CB(name, "_Access_Completed", accessCompleted_,
@@ -601,11 +608,6 @@ bool MemoryControllerHub::access_completed_cb(void *arg)
 {
     RequestEntry *queueEntry = (RequestEntry*)arg;
     
-    Signal* signal = queueEntry->request->get_statSignal();
-    if (signal) {
-        signal->emit(queueEntry->request);
-    }
-    
     if(!queueEntry->annuled) {
 
         /* Send response back to cache */
@@ -669,34 +671,37 @@ bool MemoryControllerHub::wait_interconnect_cb(void *arg)
 void MemoryControllerHub::dispatch(long clock)
 {
     RequestEntry *request;
+    MemoryStatable *mem_stat;
     foreach_list_mutable(pendingRequests_.list(), request, entry, nextentry) {
+        mem_stat = request->request->get_memoryStat();
+
         if (!request->translated) {
             if (!mapping->translate(request->coordinates)) continue;
             request->translated = true;
             request->detected = mapping->detect(request->coordinates);
-            
+            // stat
             if (mapping->touch(request->coordinates)) {
                 total_tous_committed += 1;
-                request->request->touch = true;
+                if (mem_stat) mem_stat->touches += 1;
             }
         }
         if (request->detected) {
             if (!mapping->promote(request->coordinates)) continue;
             request->detected = false;
-            
+            // stat
             total_migs_committed += 1;
-            request->request->migration = true;
+            if (mem_stat) mem_stat->migrations += 1;
         }
         if (!request->issued) {
-            if (!controller[request->coordinates.channel]->
-                addTransaction(clock, request->type, request->coordinates, request)) continue;
+            MemoryController *mc = controller[request->coordinates.channel];
+            if (!mc->addTransaction(clock, request->type, request->coordinates, request)) continue;
             request->issued = true;
-            
+            // stat
             total_accs_committed += 1;
-            request->request->access = true;
+            if (mem_stat) mem_stat->accesses += 1;
             if (request->coordinates.place % dramconfig.asym_mat_ratio == 0) {
                 total_caps_committed += 1;
-                request->request->capture = true;
+                if (mem_stat) mem_stat->captures += 1;
             }
         }
     }

@@ -136,12 +136,15 @@ ThreadContext::ThreadContext(OooCore& core_, W8 threadid_, Context& ctx_)
     thread_stats.commit.ipc.add_elem(&core_.core_stats.cycles);
     /* thread_stats.commit.ipc.enable_periodic_dump(); */
 
-#if 1 /* yclin */
+#if 0 /* yclin */
     thread_stats.commit.api.add_elem(&thread_stats.commit.accesses);
     thread_stats.commit.api.add_elem(&thread_stats.commit.insns);
 
     thread_stats.commit.cpa.add_elem(&thread_stats.commit.captures);
     thread_stats.commit.cpa.add_elem(&thread_stats.commit.accesses);
+
+    thread_stats.commit.kpc.add_elem(&thread_stats.commit.kills);
+    thread_stats.commit.kpc.add_elem(&thread_stats.commit.captures);
 
     thread_stats.commit.mpt.add_elem(&thread_stats.commit.migrations);
     thread_stats.commit.mpt.add_elem(&thread_stats.commit.touches);
@@ -284,14 +287,6 @@ OooCore::OooCore(BaseMachine& machine_, W8 num_threads,
     icache_signal.connect(signal_mem_ptr(*this,
                 &OooCore::icache_wakeup));
 
-# if 1 /* yclin */
-    sig_name.reset();
-    sig_name << core_name << "-stat-wakeup";
-    stat_signal.set_name(sig_name.buf);
-    stat_signal.connect(signal_mem_ptr(*this,
-                &OooCore::stat_wakeup));
-#endif
-
 	sig_name.reset();
 	sig_name << core_name << "-run-cycle";
 	run_cycle.set_name(sig_name.buf);
@@ -312,20 +307,6 @@ OooCore::OooCore(BaseMachine& machine_, W8 num_threads,
 
     init_luts();
 }
-
-#if 1 /* yclin */
-bool OooCore::stat_wakeup(void *arg) {
-    Memory::MemoryRequest *request = (Memory::MemoryRequest*)arg;
-
-    ThreadContext* thread = threads[request->get_threadid()];
-    if (request->access) thread->thread_stats.commit.accesses += 1;
-    if (request->capture) thread->thread_stats.commit.captures += 1;
-    if (request->touch) thread->thread_stats.commit.touches += 1;
-    if (request->migration) thread->thread_stats.commit.migrations += 1;
-
-    return true;
-}
-#endif
 
 /**
  * @brief Initialize OOO core variables and structures

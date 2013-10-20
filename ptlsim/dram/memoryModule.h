@@ -81,6 +81,9 @@ struct Config {
     int groupcount;
     int indexcount;
     
+    int max_row_hits;
+    int max_row_idle;
+    
     int asym_det_threshold;
     int asym_det_cache_size;
     int asym_map_cache_size;

@@ -1760,7 +1760,7 @@ int ReorderBufferEntry::issueload(LoadStoreQueueEntry& state, Waddr& origaddr, W
             false, uop.rip.rip, uop.uuid, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&core.dcache_signal);
 #if 1 /* yclin */
-    request->set_statSignal(&core.stat_signal);
+    request->set_memoryStat(&thread.thread_stats.memory);
 #endif
 
     bool L1hit = core.memoryHierarchy->access_cache(request);
@@ -2078,7 +2078,7 @@ rob_cont:
             false, uop.rip.rip, uop.uuid, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&core.dcache_signal);
 #if 1 /* yclin */
-    request->set_statSignal(&core.stat_signal);
+    request->set_memoryStat(&thread.thread_stats.memory);
 #endif
 
     lsq->physaddr = pteaddr >> 3;

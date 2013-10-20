@@ -1342,16 +1342,10 @@ namespace OOO_CORE_MODEL {
 		/* Cache Signals and Callbacks */
         Signal dcache_signal;
         Signal icache_signal;
-#if 1 /* yclin */
-        Signal stat_signal;
-#endif
 		Signal run_cycle;
 
         bool dcache_wakeup(void *arg);
         bool icache_wakeup(void *arg);
-#if 1 /* yclin */
-        bool stat_wakeup(void *arg);
-#endif
 
 		/* Debugging */
         void dump_state(ostream& os);

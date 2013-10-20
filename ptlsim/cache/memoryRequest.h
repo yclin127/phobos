@@ -33,6 +33,12 @@
 #include <statelist.h>
 #include <cacheConstants.h>
 
+#if 1 /* yclin */
+namespace DRAM {
+	struct MemoryStatable;
+};
+#endif
+
 namespace Memory {
 
 enum OP_TYPE {
@@ -68,11 +74,7 @@ class MemoryRequest: public selfqueuelink
 			history = new stringbuf();
 			coreSignal_ = NULL;
 #if 1 /* yclin */
-			statSignal_ = NULL;
-			access = false;
-			capture = false;
-			touch = false;
-			migration = false;
+			memoryStat_ = NULL;
 #endif
 		}
 
@@ -149,8 +151,8 @@ class MemoryRequest: public selfqueuelink
 		void set_coreSignal(Signal* signal) { coreSignal_ = signal; }
 
 #if 1 /* yclin */
-		Signal* get_statSignal() { return statSignal_; }
-		void set_statSignal(Signal* signal) { statSignal_ = signal; }
+		DRAM::MemoryStatable* get_memoryStat() { return memoryStat_; }
+		void set_memoryStat(DRAM::MemoryStatable* stat) { memoryStat_ = stat; }
 #endif
 
 		ostream& print(ostream& os) const {
@@ -168,20 +170,8 @@ class MemoryRequest: public selfqueuelink
 			if (coreSignal_) {
 				os << "coreSignal[ " << coreSignal_->get_name() << "] ";
 			}
-#if 1 /* yclin */
-			if (statSignal_) {
-				os << "statSignal[ " << statSignal_->get_name() << "] ";
-			}
-#endif
 			return os;
 		}
-		
-#if 1 /* yclin */
-		bool access;
-		bool capture;
-		bool touch;
-		bool migration;
-#endif
 
 	private:
 		W8 coreId_;
@@ -197,7 +187,7 @@ class MemoryRequest: public selfqueuelink
 		stringbuf *history;
 		Signal *coreSignal_;
 #if 1 /* yclin */
-		Signal *statSignal_;
+		DRAM::MemoryStatable *memoryStat_;
 #endif
 
 };

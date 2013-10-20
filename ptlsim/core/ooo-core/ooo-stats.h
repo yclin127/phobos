@@ -17,6 +17,10 @@
 #include <ooo-const.h>
 #include <decode.h>
 
+#if 1 /* yclin */
+#include <memoryStat.h>
+#endif
+
 namespace OOO_CORE_MODEL {
 
     struct OooCoreThreadStats : public Statable
@@ -222,16 +226,6 @@ namespace OOO_CORE_MODEL {
             StatObj<W64> insns;
             StatEquation<W64, double, StatObjFormulaDiv> uipc;
             StatEquation<W64, double, StatObjFormulaDiv> ipc;
-#if 1 /* yclin */
-            StatEquation<W64, double, StatObjFormulaDiv> api;
-            StatEquation<W64, double, StatObjFormulaDiv> cpa;
-            StatEquation<W64, double, StatObjFormulaDiv> mpt;
-            StatEquation<W64, double, StatObjFormulaDiv> mpa;
-            StatObj<W64> accesses;
-            StatObj<W64> captures;
-            StatObj<W64> touches;
-            StatObj<W64> migrations;
-#endif
 
             struct result : public Statable
             {
@@ -315,28 +309,12 @@ namespace OOO_CORE_MODEL {
                   , insns("insns", this)
                   , uipc("uipc", this)
                   , ipc("ipc", this)
-#if 1 /* yclin */
-                  , api("api", this)
-                  , cpa("cpa", this)
-                  , mpt("mpt", this)
-                  , mpa("mpa", this)
-                  , accesses("accesses", this)
-                  , captures("captures", this)
-                  , touches("touches", this)
-                  , migrations("migrations", this)
-#endif
                   , result(this)
                   , fail(this)
                   , setflags(this)
                   , opclass("opclass", this, opclass_names)
             {
                 ipc.enable_summary();
-#if 1 /* yclin */
-                api.enable_summary();
-                cpa.enable_summary();
-                mpt.enable_summary();
-                mpa.enable_summary();
-#endif
             }
         } commit;
 
@@ -546,6 +524,10 @@ namespace OOO_CORE_MODEL {
             {}
         } dcache;
 
+#if 1 /* yclin */
+        DRAM::MemoryStatable memory;
+#endif
+
         StatObj<W64> interrupt_requests;
         StatObj<W64> cpu_exit_requests;
         StatObj<W64> cycles_in_pause;
@@ -578,6 +560,9 @@ namespace OOO_CORE_MODEL {
 			  , commit(this)
 			  , branchpred(this)
 			  , dcache(this)
+#if 1 /* yclin */
+			  , memory(this, commit.insns)
+#endif
 			  , interrupt_requests("interrupt_requests", this)
 			  , cpu_exit_requests("cpu_exit_requests", this)
 			  , cycles_in_pause("cycles_in_pause", this)

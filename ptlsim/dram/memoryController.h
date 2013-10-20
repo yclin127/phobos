@@ -11,13 +11,6 @@ using namespace Memory;
 
 namespace DRAM {
 
-struct Policy {
-    int max_row_idle;
-    int max_row_hits;
-};
-
-
-
 struct RequestEntry : public FixStateListObject
 {
     CommandType type;
@@ -236,7 +229,7 @@ class MemoryController
         int refresh_interval;
 
     public:
-        MemoryController(Config &config, MemoryMapping &mapping, Policy &policy, int chid);
+        MemoryController(Config &config, MemoryMapping &mapping, int chid);
         virtual ~MemoryController();
         
         Channel *channel;
@@ -257,8 +250,6 @@ class MemoryControllerHub : public Controller
         
         Signal accessCompleted_;
         Signal waitInterconnect_;
-        
-        Policy policy;
         
         Config dramconfig;
         int channelcount;

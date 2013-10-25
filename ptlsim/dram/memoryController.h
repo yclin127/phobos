@@ -73,105 +73,6 @@ struct CommandEntry : public FixStateListObject
 
 
 
-template<class DataType>
-class AssociativeTags
-{
-    private:
-        struct Entry {
-            W64 tag;
-            Entry* next;
-            DataType data;
-        };
-        
-        int set_count, way_count, line_shift;
-        Entry *entries;
-        Entry **sets;
-        
-    public:
-        AssociativeTags(int nset, int nway, int shift) {
-            set_count = nset;
-            way_count = nway;
-            line_shift = shift;
-            entries = new Entry[set_count*way_count];
-            sets    = new Entry*[set_count];
-            
-            for (int i=0; i<set_count; i+=1) {
-                sets[i] = &entries[i*way_count];
-                for (int j=0; j<way_count; j+=1) {
-                    sets[i][j].tag = -1;
-                    sets[i][j].next = &sets[i][j+1];
-                }
-                sets[i][way_count-1].next = NULL;
-            }
-        }
-        
-        virtual ~AssociativeTags() {
-            delete [] entries;
-            delete [] sets;
-        }
-        
-        bool probe(W64 tag) {
-            int index = (tag >> line_shift) % set_count;
-            Entry *current = sets[index];
-            while (current != NULL) {
-                if (current->tag == tag) {
-                    return true;
-                }
-                current = current->next;
-            }
-            return false;
-        }
-        
-        DataType& access(W64 tag, W64 &oldtag) {
-            int index = tag % set_count;
-            Entry *previous = NULL;
-            Entry *current = sets[index];
-            while (current->tag != tag && current->next != NULL) {
-                previous = current;
-                current = current->next;
-            }
-            if (previous != NULL) {
-                previous->next = current->next;
-                current->next = sets[index];
-                sets[index] = current;
-            }
-            oldtag = current->tag;
-            if (current->tag != tag) {
-                current->tag = tag;
-            }
-            return current->data;
-        }
-        
-        void invalid(W64 tag) {
-            int index = tag % set_count;
-            Entry *previous = NULL;
-            Entry *current = sets[index];
-            Entry *last = sets[index];
-            while (last->next != NULL) {
-                if (current->tag != tag) {
-                    previous = last;
-                    current = last->next;
-                }
-                last = last->next;
-            }
-            if (current->tag == tag) {
-                current->tag = -1;
-                if (current != last) {
-                    if (previous == NULL) {
-                        sets[index] = current->next;
-                        current->next = NULL;
-                        last->next = current;
-                    } else {
-                        previous->next = current->next;
-                        current->next = NULL;
-                        last->next = current;
-                    }
-                }
-            }
-        }
-};
-
-
 #define MAPPING_TAG_SHIFT 0
 #define MAPPING_TAG_SIZE (1<<(MAPPING_TAG_SHIFT))
 
@@ -187,29 +88,35 @@ class MemoryMapping
         int rep_serial;
         
         AssociativeTags<int> map_cache;
-        long **mapping_migtime;
-        short **mapping_forward;
-        short **mapping_backward;
-        char **mapping_touch;
+        Tier3<short> mapping_forward;
+        Tier3<short> mapping_backward;
+        Tier3<char> mapping_touch;
+        Tier3<long> mapping_timestamp;
 
-        W64 make_forward_tag(int group, int index) {
-            return (((W64)((group<<1)+0) << bitfields.index.width) | index) << MAPPING_TAG_SHIFT;
+        W64 make_forward_tag(int cluster, int group, int index) {
+            W64 tag = (W64)cluster;
+            tag = (tag << bitfields.group.width) | group;
+            tag = (tag << 1) | 0;
+            tag = (tag << bitfields.index.width) | index;
+            return tag << MAPPING_TAG_SIZE;
         }
-        W64 make_backward_tag(int group, int place) {
-            return (((W64)((group<<1)+1) << bitfields.index.width) | place) << MAPPING_TAG_SHIFT;
+        W64 make_backward_tag(int cluster, int group, int place) {
+            W64 tag = (W64)cluster;
+            tag = (tag << bitfields.group.width) | group;
+            tag = (tag << 1) | 1;
+            tag = (tag << bitfields.index.width) | place;
+            return tag << MAPPING_TAG_SIZE;
         }
         
     public:
         MemoryMapping(Config &config);
         virtual ~MemoryMapping();
         
-        int channel(W64 address);
         void extract(W64 address, Coordinates &coordinates);
         bool translate(Coordinates &coordinates);
 
         bool touch(Coordinates &coordinates);
         bool detect(Coordinates &coordinates);
-        bool kill(long clock, Coordinates &coordinates);
         bool promote(long clock, Coordinates &coordinates);
 };
 

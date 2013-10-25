@@ -78,6 +78,7 @@ struct Config {
     int columncount;
     int offsetcount;
     
+    int clustercount;
     int groupcount;
     int indexcount;
     

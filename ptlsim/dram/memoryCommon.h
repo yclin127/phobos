@@ -3,6 +3,7 @@
 
 #include <ostream>
 #include <cassert>
+#include <ptlsim.h>
 
 namespace DRAM {
 
@@ -48,6 +49,7 @@ struct Coordinates {
     int column;
     int offset;
     
+    int cluster;
     int group;
     int index;
     int place;
@@ -109,6 +111,7 @@ struct BitFields {
     BitField column;
     BitField offset;
     
+    BitField cluster;
     BitField group;
     BitField index;
 };
@@ -125,6 +128,150 @@ struct RankData {
     int activeCount;
     int refreshTime;
     bool is_sleeping;
+};
+
+template<class DataType>
+class AssociativeTags
+{
+    private:
+        struct Entry {
+            W64 tag;
+            Entry* next;
+            DataType data;
+        };
+        
+        int set_count, way_count, line_shift;
+        Entry *entries;
+        Entry **sets;
+        
+    public:
+        AssociativeTags(int nset, int nway, int shift) {
+            set_count = nset;
+            way_count = nway;
+            line_shift = shift;
+            entries = new Entry[set_count*way_count];
+            sets    = new Entry*[set_count];
+            
+            for (int i=0; i<set_count; i+=1) {
+                sets[i] = &entries[i*way_count];
+                for (int j=0; j<way_count; j+=1) {
+                    sets[i][j].tag = -1;
+                    sets[i][j].next = &sets[i][j+1];
+                }
+                sets[i][way_count-1].next = NULL;
+            }
+        }
+        
+        virtual ~AssociativeTags() {
+            delete [] entries;
+            delete [] sets;
+        }
+        
+        bool probe(W64 tag) {
+            int index = (tag >> line_shift) % set_count;
+            Entry *current = sets[index];
+            while (current != NULL) {
+                if (current->tag == tag) {
+                    return true;
+                }
+                current = current->next;
+            }
+            return false;
+        }
+        
+        DataType& access(W64 tag, W64 &oldtag) {
+            int index = tag % set_count;
+            Entry *previous = NULL;
+            Entry *current = sets[index];
+            while (current->tag != tag && current->next != NULL) {
+                previous = current;
+                current = current->next;
+            }
+            if (previous != NULL) {
+                previous->next = current->next;
+                current->next = sets[index];
+                sets[index] = current;
+            }
+            oldtag = current->tag;
+            if (current->tag != tag) {
+                current->tag = tag;
+            }
+            return current->data;
+        }
+        
+        void invalid(W64 tag) {
+            int index = tag % set_count;
+            Entry *previous = NULL;
+            Entry *current = sets[index];
+            Entry *last = sets[index];
+            while (last->next != NULL) {
+                if (current->tag != tag) {
+                    previous = last;
+                    current = last->next;
+                }
+                last = last->next;
+            }
+            if (current->tag == tag) {
+                current->tag = -1;
+                if (current != last) {
+                    if (previous == NULL) {
+                        sets[index] = current->next;
+                        current->next = NULL;
+                        last->next = current;
+                    } else {
+                        previous->next = current->next;
+                        current->next = NULL;
+                        last->next = current;
+                    }
+                }
+            }
+        }
+};
+
+template<class DataType>
+class Tier3 {
+    private:
+        DataType ***data;
+        int count[3];
+
+    public:
+        Tier3(int tier1, int tier2, int tier3, DataType value) {
+            count[0] = tier1;
+            count[1] = tier2;
+            count[2] = tier3;
+
+            data = new DataType**[tier1];
+            for (int i=0; i<tier1; i+=1) {
+                data[i] = new DataType*[tier2];
+                for (int j=0; j<tier2; j+=1) {
+                    data[i][j] = new DataType[tier3];
+                    for (int k=0; k<tier3; k+=1) {
+                        data[i][j][k] = value;
+                    }
+                }
+            }
+        }
+
+        virtual ~Tier3() {
+            for (int i=0; i<count[0]; i+=1) {
+                for (int j=0; j<count[1]; j+=1) {
+                    delete [] data[i][j];
+                }
+                delete [] data[i];
+            }
+            delete [] data;
+        }
+
+        DataType& item(int tier1, int tier2, int tier3) {
+            return data[tier1][tier2][tier3];
+        }
+
+        void swap(int tier1, int tier2, int tier3, int tier3P) {
+            DataType *last_tier = data[tier1][tier2];
+            DataType temp = last_tier[tier3];
+            last_tier[tier3] = last_tier[tier3P];
+            last_tier[tier3P] = temp;
+        }
 };
 
 };

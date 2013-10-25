@@ -19,7 +19,11 @@ using namespace DRAM;
 
 MemoryMapping::MemoryMapping(Config &config) : 
     det_counter(config.asym_det_cache_size/4, 4, MAPPING_TAG_SHIFT),
-    map_cache(config.asym_map_cache_size/4, 4, log_2(config.offsetcount))
+    map_cache(config.asym_map_cache_size/4, 4, log_2(config.offsetcount)),
+    mapping_forward(config.clustercount, config.groupcount, config.indexcount, -1),
+    mapping_backward(config.clustercount, config.groupcount, config.indexcount, -1),
+    mapping_touch(config.clustercount, config.groupcount, config.indexcount, 0),
+    mapping_timestamp(config.clustercount, config.groupcount, config.indexcount, -1)
 {
     det_threshold = config.asym_det_threshold;
     mat_group = config.asym_mat_group;
@@ -40,41 +44,26 @@ MemoryMapping::MemoryMapping(Config &config) :
     bitfields.row.shift     = shift; shift +=
     bitfields.row.width     = log_2(config.rowcount);
     
-    shift = bitfields.bank.shift;
+    shift = 0;
     bitfields.group.shift   = shift; shift +=
-    bitfields.group.width   = bitfields.bank.width + 
-                              bitfields.rank.width + 
-                              log_2(config.groupcount);
+    bitfields.group.width   = log_2(config.groupcount);
     bitfields.index.shift   = shift; shift +=
     bitfields.index.width   = log_2(config.indexcount);
-    
-    mapping_migtime = new long*[1<<bitfields.group.width];
-    mapping_forward = new short*[1<<bitfields.group.width];
-    mapping_backward = new short*[1<<bitfields.group.width];
-    mapping_touch = new char*[1<<bitfields.group.width];
-    
-    for (int i=0; i<(1<<bitfields.group.width); i+=1) {
-        mapping_migtime[i] = new long[1<<bitfields.index.width];
-        mapping_forward[i] = new short[1<<bitfields.index.width];
-        mapping_backward[i] = new short[1<<bitfields.index.width];
-        mapping_touch[i] = new char[1<<bitfields.index.width];
-        
-        for (int j=0; j<(1<<bitfields.index.width); j+=1) {
-            mapping_migtime[i][j] = -1;
-            mapping_forward[i][j] = j;
-            mapping_backward[i][j] = j;
-            mapping_touch[i][j] = 0;
+    bitfields.cluster.shift = shift; shift +=
+    bitfields.cluster.width = log_2(config.clustercount);
+
+    for (int i=0; i<config.clustercount; i+=1) {
+        for (int j=0; j<config.groupcount; j+=1) {
+            for (int k=0; k<config.indexcount; k+=1) {
+                mapping_forward.item(i,j,k) = k;
+                mapping_backward.item(i,j,k) = k;
+            }
         }
     }
 }
 
 MemoryMapping::~MemoryMapping()
 {
-}
-
-int MemoryMapping::channel(W64 address)
-{
-    return bitfields.channel.value(address);
 }
 
 void MemoryMapping::extract(W64 address, Coordinates &coordinates)
@@ -88,8 +77,16 @@ void MemoryMapping::extract(W64 address, Coordinates &coordinates)
     coordinates.column  = bitfields.column.value(address);
     coordinates.offset  = bitfields.offset.value(address);
     
-    coordinates.group   = bitfields.group.value(address);
-    coordinates.index   = bitfields.index.value(address);
+    int row = coordinates.channel;
+    row = (address << bitfields.rank.width) | coordinates.rank;
+    row = (address << bitfields.bank.width) | coordinates.bank;
+    row = (address << bitfields.row.width) | coordinates.row;
+
+    row ^= (row >> bitfields.group.shift) << bitfields.index.shift;
+
+    coordinates.cluster = bitfields.cluster.value(row);
+    coordinates.group   = bitfields.group.value(row);
+    coordinates.index   = bitfields.index.value(row);
     coordinates.place   = -1;
 }
 
@@ -99,15 +96,19 @@ bool MemoryMapping::translate(Coordinates &coordinates)
     tag = make_forward_tag(coordinates.group, coordinates.index) >> bitfields.offset.width;
     map_cache.proble(tag, oldtag);*/
 
-    coordinates.place = mapping_forward[coordinates.group][coordinates.index];
+    coordinates.place = mapping_forward.item(
+        coordinates.cluster, coordinates.group, coordinates.index);
 
     return true;
 }
 
 bool MemoryMapping::touch(Coordinates &coordinates)
 {
-    if (mapping_touch[coordinates.group][coordinates.index] == 0) {
-        mapping_touch[coordinates.group][coordinates.index] = 1;
+    char &touch = mapping_touch.item(
+        coordinates.cluster, coordinates.group, coordinates.index);
+
+    if (touch == 0) {
+        touch = 1;
         return true;
     }
 
@@ -117,40 +118,29 @@ bool MemoryMapping::touch(Coordinates &coordinates)
 bool MemoryMapping::detect(Coordinates &coordinates)
 {
     W64 tag, oldtag;
-    tag = make_forward_tag(coordinates.group, coordinates.index);
+    tag = make_forward_tag(coordinates.cluster, coordinates.group, coordinates.index);
     int& count = det_counter.access(tag, oldtag);
-    if (oldtag != tag) {
-        count = 0;
-    }
+    if (oldtag != tag) count = 0;
     count += 1;
 
     return count == det_threshold && coordinates.place % mat_ratio != 0;
 }
 
-bool MemoryMapping::kill(long clock, Coordinates &coordinates)
-{
-    long migtime = mapping_migtime[coordinates.group][coordinates.index];
-
-    return migtime != -1 && clock - migtime < 1000000 && coordinates.place % mat_ratio == 0;
-}
-
 bool MemoryMapping::promote(long clock, Coordinates &coordinates)
 {
+    int cluster = coordinates.cluster;
     int group = coordinates.group;
     int index = coordinates.index;
-    int place = rep_serial;
+    int place = coordinates.place = rep_serial;
     
-    int indexP = mapping_backward[group][place];
-    int placeP = mapping_forward[group][index];
+    int indexP = mapping_backward.item(cluster, group, place);
+    int placeP = mapping_forward.item(cluster, group, index);
     
-    mapping_forward[group][index] = mapping_forward[group][indexP];
-    mapping_forward[group][indexP] = placeP;
+    mapping_forward.swap(cluster, group, index, indexP);
+    mapping_backward.swap(cluster, group, place, placeP);
     
-    mapping_backward[group][place] = mapping_backward[group][placeP];
-    mapping_backward[group][placeP] = indexP;
-    
-    mapping_migtime[group][index] = clock;
-    mapping_migtime[group][indexP] = clock;
+    mapping_timestamp.item(cluster, group, index) = clock;
+    mapping_timestamp.item(cluster, group, indexP) = clock;
 
     rep_serial = (rep_serial + mat_ratio) % mat_group;
     
@@ -459,17 +449,25 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
 
         assert(is_pow_2(ram_size));
         assert(is_pow_2(channelcount));
-        
+
         dramconfig.channelcount = channelcount;
-        dramconfig.rankcount    = ram_size / dramconfig.channelcount / dramconfig.ranksize;
-        dramconfig.rowcount     = dramconfig.ranksize / dramconfig.bankcount /
-                                  dramconfig.columncount / dramconfig.offsetcount;
+        dramconfig.rankcount    = ram_size / 
+                                  dramconfig.ranksize / 
+                                  dramconfig.channelcount; // total ranks per channel
+        dramconfig.rowcount     = dramconfig.ranksize /
+                                  dramconfig.columncount / 
+                                  dramconfig.offsetcount / 
+                                  dramconfig.bankcount; // total rows per bank
+        dramconfig.clustercount = dramconfig.channelcount *
+                                  dramconfig.rankcount *
+                                  dramconfig.bankcount;
         dramconfig.groupcount   = dramconfig.rowcount / asym_mat_group;
         dramconfig.indexcount   = asym_mat_group;
 
         //assert(is_pow_2(dramconfig.channelcount));
         assert(is_pow_2(dramconfig.rankcount));
         assert(is_pow_2(dramconfig.rowcount));
+        assert(is_pow_2(dramconfig.clustercount));
         assert(is_pow_2(dramconfig.groupcount));
         //assert(is_pow_2(dramconfig.indexcount));
         
@@ -723,10 +721,6 @@ void MemoryControllerHub::dispatch(long clock)
             if (request->coordinates.place % dramconfig.asym_mat_ratio == 0) {
                 total_caps_committed += 1;
                 if (mem_stat) mem_stat->captures += 1;
-            }
-            if (mapping->kill(clock, request->coordinates)) {
-                total_kils_committed += 1;
-                if (mem_stat) mem_stat->kills += 1;
             }
         }
     }

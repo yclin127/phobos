@@ -77,10 +77,10 @@ void MemoryMapping::extract(W64 address, Coordinates &coordinates)
     coordinates.column  = bitfields.column.value(address);
     coordinates.offset  = bitfields.offset.value(address);
     
-    int row = coordinates.channel;
-    row = (address << bitfields.rank.width) | coordinates.rank;
-    row = (address << bitfields.bank.width) | coordinates.bank;
-    row = (address << bitfields.row.width) | coordinates.row;
+    W64 row = coordinates.channel;
+    row = (row << bitfields.rank.width) | coordinates.rank;
+    row = (row << bitfields.bank.width) | coordinates.bank;
+    row = (row << bitfields.row.width) | coordinates.row;
 
     row ^= (row >> bitfields.group.shift) << bitfields.index.shift;
 
@@ -131,10 +131,14 @@ bool MemoryMapping::promote(long clock, Coordinates &coordinates)
     int cluster = coordinates.cluster;
     int group = coordinates.group;
     int index = coordinates.index;
-    int place = coordinates.place = rep_serial;
+    int place = rep_serial;
     
     int indexP = mapping_backward.item(cluster, group, place);
     int placeP = mapping_forward.item(cluster, group, index);
+
+    if (mapping_touch.item(cluster, group, indexP)) {
+        total_reps_committed += 1;
+    }
     
     mapping_forward.swap(cluster, group, index, indexP);
     mapping_backward.swap(cluster, group, place, placeP);
@@ -703,14 +707,6 @@ void MemoryControllerHub::dispatch(long clock)
             }
         }
         
-        if (request->detected) {
-            if (!mapping->promote(clock, request->coordinates)) continue;
-            request->detected = false;
-            // stat
-            total_migs_committed += 1;
-            if (mem_stat) mem_stat->migrations += 1;
-        }
-        
         if (!request->issued) {
             MemoryController *mc = controller[request->coordinates.channel];
             if (!mc->addTransaction(clock, request->type, request->coordinates, request)) continue;
@@ -722,6 +718,14 @@ void MemoryControllerHub::dispatch(long clock)
                 total_caps_committed += 1;
                 if (mem_stat) mem_stat->captures += 1;
             }
+        }
+        
+        if (request->detected) {
+            if (!mapping->promote(clock, request->coordinates)) continue;
+            request->detected = false;
+            // stat
+            total_migs_committed += 1;
+            if (mem_stat) mem_stat->migrations += 1;
         }
     }
 }

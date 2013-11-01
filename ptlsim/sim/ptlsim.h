@@ -173,9 +173,9 @@ extern W64 total_insns_committed;
 #if 1 /* yclin */
 extern W64 total_accs_committed;
 extern W64 total_caps_committed;
-extern W64 total_kils_committed;
 extern W64 total_tous_committed;
 extern W64 total_migs_committed;
+extern W64 total_reps_committed;
 #endif
 extern W64 total_basic_blocks_committed;
 

@@ -3,7 +3,6 @@
 
 #include <ostream>
 #include <cassert>
-#include <ptlsim.h>
 
 namespace DRAM {
 
@@ -130,12 +129,12 @@ struct RankData {
     bool is_sleeping;
 };
 
-template<class DataType>
+template<class TagType, class DataType>
 class AssociativeTags
 {
     private:
         struct Entry {
-            W64 tag;
+            TagType tag;
             Entry* next;
             DataType data;
         };
@@ -167,7 +166,7 @@ class AssociativeTags
             delete [] sets;
         }
         
-        bool probe(W64 tag) {
+        bool probe(TagType tag) {
             int index = (tag >> line_shift) % set_count;
             Entry *current = sets[index];
             while (current != NULL) {
@@ -179,7 +178,7 @@ class AssociativeTags
             return false;
         }
         
-        DataType& access(W64 tag, W64 &oldtag) {
+        DataType& access(TagType tag, TagType &oldtag) {
             int index = tag % set_count;
             Entry *previous = NULL;
             Entry *current = sets[index];
@@ -199,7 +198,7 @@ class AssociativeTags
             return current->data;
         }
         
-        void invalid(W64 tag) {
+        void invalid(TagType tag) {
             int index = tag % set_count;
             Entry *previous = NULL;
             Entry *current = sets[index];

@@ -81,13 +81,13 @@ class MemoryMapping
     private:
         BitFields bitfields;
         
-        AssociativeTags<int> det_counter;
+        AssociativeTags<W64, int> det_counter;
         int det_threshold;
         int mat_group;
         int mat_ratio;
         int rep_serial;
         
-        AssociativeTags<int> map_cache;
+        AssociativeTags<W64, int> map_cache;
         Tier3<short> mapping_forward;
         Tier3<short> mapping_backward;
         Tier3<char> mapping_touch;

@@ -10,19 +10,25 @@
 #include <memoryHierarchy.h>
 
 #include <machine.h>
-#include "memoryModule.h"
 
-#include <memoryStat.h>
+#include <memoryModule.h>
+#include <memoryStatistics.h>
+
+namespace DRAM {
+    MemoryCounter memoryCounter = {
+        .accessCounter = {0},
+        .rowCounter = {0},
+    };
+};
 
 using namespace DRAM;
-
 
 MemoryMapping::MemoryMapping(Config &config) : 
     det_counter(config.asym_det_cache_size/4, 4, MAPPING_TAG_SHIFT),
     map_cache(config.asym_map_cache_size/4, 4, log_2(config.offsetcount)),
     mapping_forward(config.clustercount, config.groupcount, config.indexcount, -1),
     mapping_backward(config.clustercount, config.groupcount, config.indexcount, -1),
-    mapping_touch(config.clustercount, config.groupcount, config.indexcount, 0),
+    mapping_footprint(config.clustercount, config.groupcount, config.indexcount, 0),
     mapping_timestamp(config.clustercount, config.groupcount, config.indexcount, -1)
 {
     det_threshold = config.asym_det_threshold;
@@ -102,17 +108,17 @@ bool MemoryMapping::translate(Coordinates &coordinates)
     return true;
 }
 
-bool MemoryMapping::touch(Coordinates &coordinates)
+bool MemoryMapping::allocate(Coordinates &coordinates)
 {
-    char &touch = mapping_touch.item(
+    char &allocated = mapping_footprint.item(
         coordinates.cluster, coordinates.group, coordinates.index);
 
-    if (touch == 0) {
-        touch = 1;
-        return true;
+    if (allocated == 0) {
+        allocated = 1;
+        return false;
     }
 
-    return false;
+    return true;
 }
 
 bool MemoryMapping::detect(Coordinates &coordinates)
@@ -135,10 +141,6 @@ bool MemoryMapping::promote(long clock, Coordinates &coordinates)
     
     int indexP = mapping_backward.item(cluster, group, place);
     int placeP = mapping_forward.item(cluster, group, index);
-
-    if (mapping_touch.item(cluster, group, indexP)) {
-        total_reps_committed += 1;
-    }
     
     mapping_forward.swap(cluster, group, index, indexP);
     mapping_backward.swap(cluster, group, place, placeP);
@@ -326,6 +328,10 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
                         bank.supplyCount += 1;
                     }
                 }
+
+                if (transaction->request) {
+                    transaction->request->missed = true;
+                }
             }
             
             // Read / Write / Migrate
@@ -336,6 +342,18 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
             bank.demandCount -= 1;
             bank.supplyCount -= 1;
             bank.hitCount += 1;
+
+            if (transaction->request) {
+                if (transaction->request->missed) {
+                    if (coordinates.place % asym_mat_ratio == 0) {
+                        memoryCounter.accessCounter.fastSegment += 1;
+                    } else {
+                        memoryCounter.accessCounter.slowSegment += 1;
+                    }
+                } else {
+                    memoryCounter.accessCounter.rowBuffer += 1;
+                }
+            }
             
             pendingTransactions_.free(transaction);
         }
@@ -613,7 +631,7 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
     queueEntry->request->incRefCounter();
     ADD_HISTORY_ADD(queueEntry->request);
 
-    total_lens_committed += pendingRequests_.count()-1;
+    memoryCounter.accessCounter.queueLength += pendingRequests_.count()-1;
     
     return true;
 }
@@ -701,11 +719,12 @@ void MemoryControllerHub::dispatch(long clock)
         if (!request->translated) {
             if (!mapping->translate(request->coordinates)) continue;
             request->translated = true;
+            request->allocated = mapping->allocate(request->coordinates);
             request->detected = mapping->detect(request->coordinates);
-            // stat
-            if (mapping->touch(request->coordinates)) {
-                total_tous_committed += 1;
-                if (mem_stat) mem_stat->touches += 1;
+
+            memoryCounter.accessCounter.count += 1;
+            if (!request->allocated) {
+                memoryCounter.rowCounter.count += 1;
             }
         }
         
@@ -713,21 +732,18 @@ void MemoryControllerHub::dispatch(long clock)
             MemoryController *mc = controller[request->coordinates.channel];
             if (!mc->addTransaction(clock, request->type, request->coordinates, request)) continue;
             request->issued = true;
-            // stat
-            total_accs_committed += 1;
-            if (mem_stat) mem_stat->accesses += 1;
-            if (request->coordinates.place % dramconfig.asym_mat_ratio == 0) {
-                total_caps_committed += 1;
-                if (mem_stat) mem_stat->captures += 1;
-            }
         }
         
         if (request->detected) {
-            if (!mapping->promote(clock, request->coordinates)) continue;
+            MemoryController *mc = controller[request->coordinates.channel];
+            if (!mc->addTransaction(clock, COMMAND_migrate, request->coordinates, NULL)) continue;
+            mapping->promote(clock, request->coordinates);
             request->detected = false;
-            // stat
-            total_migs_committed += 1;
-            if (mem_stat) mem_stat->migrations += 1;
+
+            memoryCounter.rowCounter.migration += 1;
+            if (request->allocated) {
+                memoryCounter.rowCounter.remigration += 1;
+            }
         }
     }
 }

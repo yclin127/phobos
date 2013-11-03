@@ -30,6 +30,10 @@
 #include <syscalls.h>
 #include <ptl-qemu.h>
 
+#if 1 /* yclin */
+#include <memoryStatistics.h>
+#endif
+
 #include <test.h>
 /*
  * DEPRECATED CONFIG OPTIONS:
@@ -58,14 +62,6 @@ W64 iterations = 0;
 W64 total_uops_executed = 0;
 W64 total_uops_committed = 0;
 W64 total_insns_committed = 0;
-#if 1 /* yclin */
-W64 total_accs_committed = 0;
-W64 total_caps_committed = 0;
-W64 total_tous_committed = 0;
-W64 total_migs_committed = 0;
-W64 total_reps_committed = 0;
-W64 total_lens_committed = 0;
-#endif
 W64 total_basic_blocks_committed = 0;
 
 W64 last_printed_status_at_ticks;
@@ -1404,12 +1400,14 @@ extern "C" uint8_t ptl_simulate() {
   sb << endl << "Stopped after " 
     << sim_cycle << " cycles, " 
     << total_insns_committed << " insns, " 
-    << total_accs_committed << " accesses, " 
-    << total_caps_committed << " captures, " 
-    << total_tous_committed << " touches, " 
-    << total_migs_committed << " migrations, " 
-    << total_reps_committed << " replacements, " 
-    << total_lens_committed << " lengths, " 
+    << DRAM::memoryCounter.accessCounter.count << " accesses (" 
+    << DRAM::memoryCounter.accessCounter.rowBuffer << " hits, " 
+    << DRAM::memoryCounter.accessCounter.fastSegment << " fast, " 
+    << DRAM::memoryCounter.accessCounter.slowSegment << " slow, " 
+    << DRAM::memoryCounter.accessCounter.queueLength << " queue), "
+    << DRAM::memoryCounter.rowCounter.count << " rows (" 
+    << DRAM::memoryCounter.rowCounter.migration << " migrations, " 
+    << DRAM::memoryCounter.rowCounter.remigration << " remigration), "
     << seconds << " seconds of sim time ("
       "cycle/sec: " << W64(double(sim_cycle) / double(seconds)) << " Hz, "
       "insns/sec: " << W64(double(total_insns_committed) / double(seconds)) << ", "
@@ -1471,18 +1469,19 @@ extern "C" void update_progress() {
     stringbuf sb;
 #if 1 /* yclin */
     sb << "Completed " 
-      << intstring(sim_cycle, 10) << " cycles, " 
-      << intstring(total_insns_committed, 10) << " insns, " 
-      << intstring(total_accs_committed, 8) << " accesses, " 
-      << intstring(total_caps_committed, 8) << " captures, " 
-      << intstring(total_tous_committed, 6) << " touches, " 
-      << intstring(total_migs_committed, 6) << " migrations, "
-      << intstring(total_reps_committed, 6) << " replacements, "
-      << intstring(total_lens_committed, 6) << " lengths";
+      << sim_cycle << " cycles, " 
+      << total_insns_committed << " insns, "
+      << DRAM::memoryCounter.accessCounter.count << " accesses (" 
+      << DRAM::memoryCounter.accessCounter.rowBuffer << " hits, " 
+      << DRAM::memoryCounter.accessCounter.fastSegment << " fast, " 
+      << DRAM::memoryCounter.accessCounter.slowSegment << " slow, " 
+      << DRAM::memoryCounter.accessCounter.queueLength << " queue), "
+      << DRAM::memoryCounter.rowCounter.count << " rows (" 
+      << DRAM::memoryCounter.rowCounter.migration << " moves, " 
+      << DRAM::memoryCounter.rowCounter.remigration << " redoes)";
 #else
     sb << "Completed " << intstring(sim_cycle, 13) << " cycles, " << intstring(total_insns_committed, 13) << " commits: " <<
       intstring((W64)cycles_per_sec, 9) << " Hz, " << intstring((W64)insns_per_sec, 9) << " insns/sec";
-#endif
 
     sb << ": rip";
     foreach (i, contextcount) {
@@ -1500,6 +1499,7 @@ extern "C" void update_progress() {
       }
       sb << ' ' << hexstring(contextof(i).get_cs_eip(), 64);
     }
+#endif
 
     //while (sb.size() < 160) sb << ' ';
 

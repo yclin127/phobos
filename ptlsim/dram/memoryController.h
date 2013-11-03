@@ -20,16 +20,20 @@ struct RequestEntry : public FixStateListObject
     Controller *source;
 
     bool annuled;
-    bool translated;
     bool issued;
+    bool translated;
+    bool allocated;
     bool detected;
+    bool missed;
 
     void init() {
         request = NULL;
         annuled = false;
-        translated = false;
         issued = false;
+        translated = false;
+        allocated = false;
         detected = false;
+        missed = false;
     }
 
     ostream& print(ostream &os) const {
@@ -90,7 +94,7 @@ class MemoryMapping
         AssociativeTags<W64, int> map_cache;
         Tier3<short> mapping_forward;
         Tier3<short> mapping_backward;
-        Tier3<char> mapping_touch;
+        Tier3<char> mapping_footprint;
         Tier3<long> mapping_timestamp;
 
         W64 make_forward_tag(int cluster, int group, int index) {
@@ -115,7 +119,7 @@ class MemoryMapping
         void extract(W64 address, Coordinates &coordinates);
         bool translate(Coordinates &coordinates);
 
-        bool touch(Coordinates &coordinates);
+        bool allocate(Coordinates &coordinates);
         bool detect(Coordinates &coordinates);
         bool promote(long clock, Coordinates &coordinates);
 };

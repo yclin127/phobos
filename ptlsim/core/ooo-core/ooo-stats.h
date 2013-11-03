@@ -18,7 +18,7 @@
 #include <decode.h>
 
 #if 1 /* yclin */
-#include <memoryStat.h>
+#include <memoryStatistics.h>
 #endif
 
 namespace OOO_CORE_MODEL {

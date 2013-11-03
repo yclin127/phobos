@@ -51,20 +51,21 @@ struct ChannelEnergy {
     int row;
     int column;
     int data;
-    
+
     int clock_per_cycle;
 };
 
 struct RankEnergy {
-    int activate;
+    int activate_precharge;
     int read;
     int write;
-    int precharge;
-    int migrate;
     int refresh;
+    int migrate;
     
-    int powerup_per_cycle;
-    int powerdown_per_cycle;
+    int active_standby_per_cycle;
+    int active_powerdown_per_cycle;
+    int precharge_standby_per_cycle;
+    int precharge_powerdown_per_cycle;
 };
 
 struct Config {
@@ -94,12 +95,12 @@ struct Config {
     float clock;
     
     ChannelTiming channel_timing;
-    RankTiming    rank_timing;
-    BankTiming    fast_bank_timing;
-    BankTiming    slow_bank_timing;
+    RankTiming rank_timing;
+    BankTiming fast_bank_timing;
+    BankTiming  slow_bank_timing;
     
     ChannelEnergy channel_energy;
-    RankEnergy    rank_energy;
+    RankEnergy rank_energy;
     
     Config() {}
     Config(
@@ -110,7 +111,15 @@ struct Config {
       int tRRD, int tCCD, int tFAW, 
       int tRTP, int tWTR, int tWR, int tRTRS, 
       int tRFC, int tREFI,
-      int tCKE, int tXP
+      int tCKE, int tXP,
+      float VDD, float VDDQ,
+      int IDD0, int IDD1,
+      int IDD2P0, int IDD2P1,
+      int IDD2N, int IDD2NT, int IDD2Q,
+      int IDD3P, int IDD3N,
+      int IDD4R, int IDD4W,
+      int IDD5B, int IDD6,
+      int IDD7, int IDD8
     ) {
         ranksize = (long)SIZE<<20;
         
@@ -167,6 +176,24 @@ struct Config {
         slow_bank_timing.mig_latency   = tRAS+tRP;
 
         fast_bank_timing = slow_bank_timing;
+
+        channel_energy.command = 0;
+        channel_energy.row     = 0;
+        channel_energy.column  = 0;
+        channel_energy.data    = 0;
+
+        channel_energy.clock_per_cycle = 0;
+
+        rank_energy.activate_precharge = VDD*((IDD0-IDD3N)*tRAS+(IDD0-IDD2N)*tRP)*DEVICE;
+        rank_energy.read    = VDD*(IDD4R-IDD3N)*tBL*DEVICE;
+        rank_energy.write   = VDD*(IDD4W-IDD3N)*tBL*DEVICE;
+        rank_energy.refresh = VDD*(IDD5B-IDD3N)*tRFC*DEVICE;
+        rank_energy.migrate = rank_energy.activate_precharge*4;
+        
+        rank_energy.active_standby_per_cycle      = VDD*IDD3N*DEVICE;
+        rank_energy.active_powerdown_per_cycle    = VDD*IDD3P*DEVICE;
+        rank_energy.precharge_standby_per_cycle   = VDD*IDD2N*DEVICE;
+        rank_energy.precharge_powerdown_per_cycle = VDD*IDD2P1*DEVICE;
     }
 
     void cache_setup(int rcd_ratio, int ras_ratio, int rp_ratio, int wr_ratio, int cl_ratio, int mig_ratio) {
@@ -229,6 +256,7 @@ protected:
     RankEnergy *energy;
     
     int bankcount;
+    int opencount;
     Bank** banks;
     
     RankData data;
@@ -239,11 +267,11 @@ protected:
     long writeReadyTime;
     long powerupReadyTime;
     
-    long actEnergy;
-    long preEnergy;
+    long actPreEnergy;
     long readEnergy;
     long writeEnergy;
     long refreshEnergy;
+    long migrateEnergy;
     long backgroundEnergy;
     
 public:
@@ -254,6 +282,7 @@ public:
     RankData &getRankData(Coordinates &coordinates);
     long getReadyTime(CommandType type, Coordinates &coordinates);
     long getFinishTime(long clock, CommandType type, Coordinates &coordinates);
+    long getEnergy(PowerType type);
     
     void cycle(long clock);
 };
@@ -286,6 +315,7 @@ public:
     RankData &getRankData(Coordinates &coordinates);
     long getReadyTime(CommandType type, Coordinates &coordinates);
     long getFinishTime(long clock, CommandType type, Coordinates &coordinates);
+    long getEnergy(PowerType type);
     
     void cycle(long clock);
 };

@@ -176,6 +176,7 @@ extern W64 total_caps_committed;
 extern W64 total_tous_committed;
 extern W64 total_migs_committed;
 extern W64 total_reps_committed;
+extern W64 total_lens_committed;
 #endif
 extern W64 total_basic_blocks_committed;
 

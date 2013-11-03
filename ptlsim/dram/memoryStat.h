@@ -24,12 +24,12 @@ struct MemoryStatable : public Statable
             , touches("touches", this)
             , migrations("migrations", this)
     {
-        api.enable_summary();
+        /*api.enable_summary();
         cpa.enable_summary();
         mpt.enable_summary();
-        mpa.enable_summary();
+        mpa.enable_summary();*/
         
-        api.add_elem(&accesses);
+        /*api.add_elem(&accesses);
         api.add_elem(&insns);
 
         cpa.add_elem(&captures);
@@ -39,7 +39,7 @@ struct MemoryStatable : public Statable
         mpt.add_elem(&touches);
 
         mpa.add_elem(&migrations);
-        mpa.add_elem(&accesses);
+        mpa.add_elem(&accesses);*/
     }
 };
 

@@ -612,6 +612,8 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
 
     queueEntry->request->incRefCounter();
     ADD_HISTORY_ADD(queueEntry->request);
+
+    total_lens_committed += pendingRequests_.count()-1;
     
     return true;
 }

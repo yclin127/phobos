@@ -64,6 +64,7 @@ W64 total_caps_committed = 0;
 W64 total_tous_committed = 0;
 W64 total_migs_committed = 0;
 W64 total_reps_committed = 0;
+W64 total_lens_committed = 0;
 #endif
 W64 total_basic_blocks_committed = 0;
 
@@ -1408,6 +1409,7 @@ extern "C" uint8_t ptl_simulate() {
     << total_tous_committed << " touches, " 
     << total_migs_committed << " migrations, " 
     << total_reps_committed << " replacements, " 
+    << total_lens_committed << " lengths, " 
     << seconds << " seconds of sim time ("
       "cycle/sec: " << W64(double(sim_cycle) / double(seconds)) << " Hz, "
       "insns/sec: " << W64(double(total_insns_committed) / double(seconds)) << ", "
@@ -1475,7 +1477,8 @@ extern "C" void update_progress() {
       << intstring(total_caps_committed, 8) << " captures, " 
       << intstring(total_tous_committed, 6) << " touches, " 
       << intstring(total_migs_committed, 6) << " migrations, "
-      << intstring(total_reps_committed, 6) << " replacements";
+      << intstring(total_reps_committed, 6) << " replacements, "
+      << intstring(total_lens_committed, 6) << " lengths";
 #else
     sb << "Completed " << intstring(sim_cycle, 13) << " cycles, " << intstring(total_insns_committed, 13) << " commits: " <<
       intstring((W64)cycles_per_sec, 9) << " Hz, " << intstring((W64)insns_per_sec, 9) << " insns/sec";

@@ -748,9 +748,11 @@ def generate_memory_logic(config, options):
         for memory, cfg in config["memory"].items():
             if cfg['base'] != 'dram_module': continue
             of.write("static const Config %s_CONFIG(\n" % memory.upper())
+
             of.write("\t/*int DEVICE*/%d, /*int BANK*/%d, /*int COLUMN*/%d, /*int SIZE*/%d,\n" %
                 (cfg["params"]["DEVICE"], cfg["params"]["BANK"], 
                 cfg["params"]["COLUMN"], cfg["params"]["SIZE"]))
+
             of.write("\t/*float tCK*/%g, /*int tCMD*/%d,\n" %
                 (cfg["params"]["tCK"], cfg["params"]["tCMD"]))
             of.write("\t/*int tCL*/%d, /*int tCWL*/%d, /*int tBL*/%d,\n" %
@@ -764,8 +766,26 @@ def generate_memory_logic(config, options):
                 cfg["params"]["tWR"], cfg["params"]["tRTRS"]))
             of.write("\t/*int tRFC*/%d, /*int tREFI*/%d,\n" %
                 (cfg["params"]["tRFC"], cfg["params"]["tREFI"]))
-            of.write("\t/*int tCKE*/%d, /*int tXP*/%d\n" %
+            of.write("\t/*int tCKE*/%d, /*int tXP*/%d,\n" %
                 (cfg["params"]["tCKE"], cfg["params"]["tXP"]))
+
+            of.write("\t/*float VDD*/%g, /*float VDDQ*/%g,\n" % 
+                (cfg["params"]["VDD"], cfg["params"]["VDDQ"]))
+            of.write("\t/*int IDD0*/%d, /*int IDD1*/%d,\n" % 
+                (cfg["params"]["IDD0"], cfg["params"]["IDD1"]))
+            of.write("\t/*int IDD2P0*/%d, /*int IDD2P1*/%d,\n" % 
+                (cfg["params"]["IDD2P0"], cfg["params"]["IDD2P1"]))
+            of.write("\t/*int IDD2N*/%d, /*int IDD2NT*/%d, /*int IDD2Q*/%d,\n" % 
+                (cfg["params"]["IDD2N"], cfg["params"]["IDD2NT"], cfg["params"]["IDD2Q"]))
+            of.write("\t/*int IDD3P*/%d, /*int IDD3N*/%d,\n" % 
+                (cfg["params"]["IDD3P"], cfg["params"]["IDD3N"]))
+            of.write("\t/*int IDD4R*/%d, /*int IDD4W*/%d,\n" % 
+                (cfg["params"]["IDD4R"], cfg["params"]["IDD4W"]))
+            of.write("\t/*int IDD5B*/%d, /*int IDD6*/%d,\n" % 
+                (cfg["params"]["IDD5B"], cfg["params"]["IDD6"]))
+            of.write("\t/*int IDD7*/%d, /*int IDD8*/%d\n" % 
+                (cfg["params"]["IDD7"], cfg["params"]["IDD8"]))
+
             of.write(");\n")
             of.write("\n")
 

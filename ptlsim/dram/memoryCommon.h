@@ -13,10 +13,20 @@ enum CommandType {
     COMMAND_write,
     COMMAND_read_precharge,
     COMMAND_write_precharge,
-    COMMAND_migrate,
     COMMAND_refresh,
+    COMMAND_migrate,
     COMMAND_powerup,
     COMMAND_powerdown,
+};
+
+enum PowerType {
+    POWER_activate_precharge,
+    POWER_read,
+    POWER_write,
+    POWER_refresh,
+    POWER_migrate,
+    POWER_background,
+    POWER_total,
 };
 
 inline const char* toString(CommandType type) {

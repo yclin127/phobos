@@ -146,6 +146,15 @@ long Channel::getFinishTime(long clock, CommandType type, Coordinates &coordinat
     }
 }
 
+long Channel::getEnergy(PowerType type)
+{
+    long energy = 0;
+    for (int rank=0; rank<rankcount; ++rank) {
+        energy += ranks[rank]->getEnergy(type);
+    }
+    return energy;
+}
+
 void Channel::cycle(long clock)
 {
     clockEnergy += energy->clock_per_cycle;
@@ -158,6 +167,7 @@ void Channel::cycle(long clock)
 Rank::Rank(Config *config)
 {
     bankcount = config->bankcount;
+    opencount = 0;
     banks = new Bank*[bankcount];
     for (int i=0; i<bankcount; ++i) {
         banks[i] = new Bank(config);
@@ -175,11 +185,11 @@ Rank::Rank(Config *config)
     writeReadyTime   = 0;
     powerupReadyTime = -1;
     
-    actEnergy        = 0;
-    preEnergy        = 0;
+    actPreEnergy     = 0;
     readEnergy       = 0;
     writeEnergy      = 0;
     refreshEnergy    = 0;
+    migrateEnergy    = 0;
     backgroundEnergy = 0;
 }
 
@@ -268,12 +278,16 @@ long Rank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             fawReadyTime[2] = fawReadyTime[3];
             fawReadyTime[3] = clock + timing->act_to_faw;
             
-            actEnergy += energy->activate;
+            actPreEnergy += energy->activate_precharge;
+
+            opencount += 1;
+            assert(opencount <= bankcount);
             
             return banks[coordinates.bank]->getFinishTime(clock, type, coordinates);
             
         case COMMAND_precharge:
-            actEnergy += energy->precharge;
+            opencount -= 1;
+            assert(opencount >= 0);
             
             return banks[coordinates.bank]->getFinishTime(clock, type, coordinates);
             
@@ -315,7 +329,7 @@ long Rank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             fawReadyTime[2] = fawReadyTime[3];
             fawReadyTime[3] = clock + timing->act_to_faw; /** */
             
-            actEnergy += energy->migrate;
+            migrateEnergy += energy->migrate;
             
             return banks[coordinates.bank]->getFinishTime(clock, type, coordinates);
             
@@ -349,12 +363,43 @@ long Rank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
     }
 }
 
+long Rank::getEnergy(PowerType type)
+{
+    switch (type) {
+        case POWER_activate_precharge:
+            return actPreEnergy;
+        case POWER_read:
+            return readEnergy;
+        case POWER_write:
+            return writeEnergy;
+        case POWER_refresh:
+            return refreshEnergy;
+        case POWER_migrate:
+            return migrateEnergy;
+        case POWER_background:
+            return backgroundEnergy;
+        case POWER_total:
+            return actPreEnergy + readEnergy + writeEnergy + 
+                refreshEnergy + migrateEnergy + backgroundEnergy;
+        default:
+            assert(0);
+    }
+}
+
 void Rank::cycle(long clock)
 {
     if (powerupReadyTime == -1) {
-        backgroundEnergy += energy->powerup_per_cycle;
+        if (opencount == 0) {
+            backgroundEnergy += energy->precharge_standby_per_cycle;
+        } else {
+            backgroundEnergy += energy->active_standby_per_cycle;
+        }
     } else {
-        backgroundEnergy += energy->powerdown_per_cycle;
+        if (opencount == 0) {
+            backgroundEnergy += energy->precharge_powerdown_per_cycle;
+        } else {
+            backgroundEnergy += energy->active_powerdown_per_cycle;
+        }
     }
 }
 

@@ -110,15 +110,13 @@ bool MemoryMapping::translate(Coordinates &coordinates)
 
 bool MemoryMapping::allocate(Coordinates &coordinates)
 {
-    char &allocated = mapping_footprint.item(
+    char &flags = mapping_footprint.item(
         coordinates.cluster, coordinates.group, coordinates.index);
+    
+    bool result = (flags & 1);
+    flags |= 1;
 
-    if (allocated == 0) {
-        allocated = 1;
-        return false;
-    }
-
-    return true;
+    return result;
 }
 
 bool MemoryMapping::detect(Coordinates &coordinates)
@@ -150,7 +148,14 @@ bool MemoryMapping::promote(long clock, Coordinates &coordinates)
 
     rep_serial = (rep_serial + mat_ratio) % mat_group;
     
-    return true;
+
+    char &flags = mapping_footprint.item(
+        coordinates.cluster, coordinates.group, coordinates.index);
+    
+    bool result = (flags & 2);
+    flags |= 2;
+
+    return result;
 }
 
 MemoryController::MemoryController(Config &config, MemoryMapping &mapping, int chid)
@@ -718,32 +723,34 @@ void MemoryControllerHub::dispatch(long clock)
 
         if (!request->translated) {
             if (!mapping->translate(request->coordinates)) continue;
-            request->translated = true;
-            request->allocated = mapping->allocate(request->coordinates);
+
             request->detected = mapping->detect(request->coordinates);
 
             memoryCounter.accessCounter.count += 1;
-            if (!request->allocated) {
+            if (!mapping->allocate(request->coordinates)) {
                 memoryCounter.rowCounter.count += 1;
             }
+
+            request->translated = true;
         }
         
         if (!request->issued) {
             MemoryController *mc = controller[request->coordinates.channel];
             if (!mc->addTransaction(clock, request->type, request->coordinates, request)) continue;
+
             request->issued = true;
         }
         
         if (request->detected) {
             MemoryController *mc = controller[request->coordinates.channel];
             if (!mc->addTransaction(clock, COMMAND_migrate, request->coordinates, NULL)) continue;
-            mapping->promote(clock, request->coordinates);
-            request->detected = false;
 
             memoryCounter.rowCounter.migration += 1;
-            if (request->allocated) {
+            if (mapping->promote(clock, request->coordinates)) {
                 memoryCounter.rowCounter.remigration += 1;
             }
+
+            request->detected = false;
         }
     }
 }

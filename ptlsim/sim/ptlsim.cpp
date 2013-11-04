@@ -1400,14 +1400,14 @@ extern "C" uint8_t ptl_simulate() {
   sb << endl << "Stopped after " 
     << sim_cycle << " cycles, " 
     << total_insns_committed << " insns, " 
-    << DRAM::memoryCounter.accessCounter.count << " accesses (" 
+    << DRAM::memoryCounter.accessCounter.count << " accesses, " 
     << DRAM::memoryCounter.accessCounter.rowBuffer << " hits, " 
     << DRAM::memoryCounter.accessCounter.fastSegment << " fast, " 
     << DRAM::memoryCounter.accessCounter.slowSegment << " slow, " 
-    << DRAM::memoryCounter.accessCounter.queueLength << " queue), "
-    << DRAM::memoryCounter.rowCounter.count << " rows (" 
-    << DRAM::memoryCounter.rowCounter.migration << " migrations, " 
-    << DRAM::memoryCounter.rowCounter.remigration << " remigration), "
+    << DRAM::memoryCounter.accessCounter.queueLength << " queue, "
+    << DRAM::memoryCounter.rowCounter.count << " rows, " 
+    << DRAM::memoryCounter.rowCounter.migration << " moves, " 
+    << DRAM::memoryCounter.rowCounter.remigration << " redoes, "
     << seconds << " seconds of sim time ("
       "cycle/sec: " << W64(double(sim_cycle) / double(seconds)) << " Hz, "
       "insns/sec: " << W64(double(total_insns_committed) / double(seconds)) << ", "
@@ -1471,14 +1471,14 @@ extern "C" void update_progress() {
     sb << "Completed " 
       << sim_cycle << " cycles, " 
       << total_insns_committed << " insns, "
-      << DRAM::memoryCounter.accessCounter.count << " accesses (" 
+      << DRAM::memoryCounter.accessCounter.count << " accesses, " 
       << DRAM::memoryCounter.accessCounter.rowBuffer << " hits, " 
       << DRAM::memoryCounter.accessCounter.fastSegment << " fast, " 
       << DRAM::memoryCounter.accessCounter.slowSegment << " slow, " 
-      << DRAM::memoryCounter.accessCounter.queueLength << " queue), "
-      << DRAM::memoryCounter.rowCounter.count << " rows (" 
+      << DRAM::memoryCounter.accessCounter.queueLength << " queue, "
+      << DRAM::memoryCounter.rowCounter.count << " rows, " 
       << DRAM::memoryCounter.rowCounter.migration << " moves, " 
-      << DRAM::memoryCounter.rowCounter.remigration << " redoes)";
+      << DRAM::memoryCounter.rowCounter.remigration << " redoes";
 #else
     sb << "Completed " << intstring(sim_cycle, 13) << " cycles, " << intstring(total_insns_committed, 13) << " commits: " <<
       intstring((W64)cycles_per_sec, 9) << " Hz, " << intstring((W64)insns_per_sec, 9) << " insns/sec";

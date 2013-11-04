@@ -22,7 +22,6 @@ struct RequestEntry : public FixStateListObject
     bool annuled;
     bool issued;
     bool translated;
-    bool allocated;
     bool detected;
     bool missed;
 
@@ -31,7 +30,6 @@ struct RequestEntry : public FixStateListObject
         annuled = false;
         issued = false;
         translated = false;
-        allocated = false;
         detected = false;
         missed = false;
     }

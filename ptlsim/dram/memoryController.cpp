@@ -15,10 +15,7 @@
 #include <memoryStatistics.h>
 
 namespace DRAM {
-    MemoryCounter memoryCounter = {
-        .accessCounter = {0},
-        .rowCounter = {0},
-    };
+    MemoryCounter memoryCounter = {0};
 };
 
 using namespace DRAM;
@@ -98,14 +95,20 @@ void MemoryMapping::extract(W64 address, Coordinates &coordinates)
 
 bool MemoryMapping::translate(Coordinates &coordinates)
 {
-    /*W64 tag, oldtag;
-    tag = make_forward_tag(coordinates.group, coordinates.index) >> bitfields.offset.width;
-    map_cache.proble(tag, oldtag);*/
+    W64 tag = make_forward_tag(coordinates);
+    if (!map_cache.probe(tag)) return false;
 
     coordinates.place = mapping_forward.item(
         coordinates.cluster, coordinates.group, coordinates.index);
 
     return true;
+}
+
+void MemoryMapping::update(W64 tag)
+{
+    W64 oldtag;
+    assert(tag != (W64)-1);
+    map_cache.access(tag, oldtag);
 }
 
 bool MemoryMapping::allocate(Coordinates &coordinates)
@@ -122,7 +125,7 @@ bool MemoryMapping::allocate(Coordinates &coordinates)
 bool MemoryMapping::detect(Coordinates &coordinates)
 {
     W64 tag, oldtag;
-    tag = make_forward_tag(coordinates.cluster, coordinates.group, coordinates.index);
+    tag = make_forward_tag(coordinates);
     int& count = det_counter.access(tag, oldtag);
     if (oldtag != tag) count = 0;
     count += 1;
@@ -254,7 +257,7 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates &coo
     return true;
 }
 
-void MemoryController::schedule(long clock, Signal &accessCompleted_)
+void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &missCompleted_)
 {
     /** Transaction to Command */
     
@@ -412,7 +415,11 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
                 case COMMAND_read_precharge:
                 case COMMAND_write:
                 case COMMAND_write_precharge:
-                    accessCompleted_.emit(command->request);
+                    if (command->request) {
+                        accessCompleted_.emit(command->request);
+                    } else if (command->type == COMMAND_read) {
+                        missCompleted_.emit(&command->coordinates);
+                    }
                     break;
                     
                 default:
@@ -524,6 +531,9 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         controller[channel] = new MemoryController(dramconfig, *mapping, channel);
     }
     
+    SET_SIGNAL_CB(name, "_Miss_Completed", missCompleted_,
+            &MemoryControllerHub::miss_completed_cb);
+
     SET_SIGNAL_CB(name, "_Access_Completed", accessCompleted_,
             &MemoryControllerHub::access_completed_cb);
     
@@ -713,6 +723,17 @@ bool MemoryControllerHub::wait_interconnect_cb(void *arg)
     return true;
 }
 
+bool MemoryControllerHub::miss_completed_cb(void *arg)
+{
+    Coordinates *coordinates = (Coordinates*)arg;
+    
+    W64 tag = coordinates->group;
+    assert(mapping_misses.find(tag) != mapping_misses.end());
+    mapping_misses.erase(tag);
+
+    return true;
+}
+
 void MemoryControllerHub::dispatch(long clock)
 {
     RequestEntry *request;
@@ -722,7 +743,22 @@ void MemoryControllerHub::dispatch(long clock)
         mem_stat = request->request->get_memoryStat();
 
         if (!request->translated) {
-            if (!mapping->translate(request->coordinates)) continue;
+            if (!mapping->translate(request->coordinates)) {
+                W64 tag = mapping->make_forward_tag(request->coordinates);
+                if (mapping_misses.find(tag) == mapping_misses.end() &&
+                    mapping_misses.size() < 8) {
+                    Coordinates tag_coordinates;
+                    mapping->extract(tag, tag_coordinates);
+                    tag_coordinates.row += dramconfig.rowcount;
+                    tag_coordinates.group = tag;
+                    tag_coordinates.place = 0;
+
+                    MemoryController *mc = controller[tag_coordinates.channel];
+                    if (!mc->addTransaction(clock, COMMAND_read, tag_coordinates, NULL)) continue;
+                    mapping_misses[tag] = 0;
+                }
+                continue;
+            }
 
             request->detected = mapping->detect(request->coordinates);
 
@@ -742,6 +778,19 @@ void MemoryControllerHub::dispatch(long clock)
         }
         
         if (request->detected) {
+            if (!request->updated) {
+                W64 tag = mapping->make_forward_tag(request->coordinates);
+                Coordinates tag_coordinates;
+                mapping->extract(tag, tag_coordinates);
+                tag_coordinates.row += dramconfig.rowcount;
+                tag_coordinates.place = 0;
+
+                MemoryController *mc = controller[tag_coordinates.channel];
+                if (!mc->addTransaction(clock, COMMAND_write, tag_coordinates, NULL)) continue;
+
+                request->updated = true;
+            }
+
             MemoryController *mc = controller[request->coordinates.channel];
             if (!mc->addTransaction(clock, COMMAND_migrate, request->coordinates, NULL)) continue;
 
@@ -762,7 +811,7 @@ void MemoryControllerHub::cycle()
         dispatch(clock_mem);
         for (int channel=0; channel<channelcount; ++channel) {
             controller[channel]->channel->cycle(clock_mem);
-            controller[channel]->schedule(clock_mem, accessCompleted_);
+            controller[channel]->schedule(clock_mem, accessCompleted_, missCompleted_);
         }
         clock_mem += 1;
         clock_rem -= clock_den;

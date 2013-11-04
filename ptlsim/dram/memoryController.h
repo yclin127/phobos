@@ -23,6 +23,7 @@ struct RequestEntry : public FixStateListObject
     bool issued;
     bool translated;
     bool detected;
+    bool updated;
     bool missed;
 
     void init() {
@@ -31,6 +32,7 @@ struct RequestEntry : public FixStateListObject
         issued = false;
         translated = false;
         detected = false;
+        updated = false;
         missed = false;
     }
 
@@ -94,21 +96,6 @@ class MemoryMapping
         Tier3<short> mapping_backward;
         Tier3<char> mapping_footprint;
         Tier3<long> mapping_timestamp;
-
-        W64 make_forward_tag(int cluster, int group, int index) {
-            W64 tag = (W64)cluster;
-            tag = (tag << bitfields.group.width) | group;
-            tag = (tag << 1) | 0;
-            tag = (tag << bitfields.index.width) | index;
-            return tag << MAPPING_TAG_SIZE;
-        }
-        W64 make_backward_tag(int cluster, int group, int place) {
-            W64 tag = (W64)cluster;
-            tag = (tag << bitfields.group.width) | group;
-            tag = (tag << 1) | 1;
-            tag = (tag << bitfields.index.width) | place;
-            return tag << MAPPING_TAG_SIZE;
-        }
         
     public:
         MemoryMapping(Config &config);
@@ -116,10 +103,26 @@ class MemoryMapping
         
         void extract(W64 address, Coordinates &coordinates);
         bool translate(Coordinates &coordinates);
+        void update(W64 tag);
 
         bool allocate(Coordinates &coordinates);
         bool detect(Coordinates &coordinates);
         bool promote(long clock, Coordinates &coordinates);
+
+        W64 make_forward_tag(Coordinates &coordinates) {
+            W64 tag = (W64)coordinates.cluster;
+            tag = (tag << bitfields.group.width) | coordinates.group;
+            tag = (tag << 1) | 0;
+            tag = (tag << bitfields.index.width) | coordinates.index;
+            return tag << MAPPING_TAG_SIZE;
+        }
+        W64 make_backward_tag(Coordinates &coordinates) {
+            W64 tag = (W64)coordinates.cluster;
+            tag = (tag << bitfields.group.width) | coordinates.group;
+            tag = (tag << 1) | 1;
+            tag = (tag << bitfields.index.width) | coordinates.place;
+            return tag << MAPPING_TAG_SIZE;
+        }
 };
 
 
@@ -153,7 +156,7 @@ class MemoryController
         bool addTransaction(long clock, CommandType type, Coordinates &coordinates, RequestEntry *request);
         bool addCommand(long clock, CommandType type, Coordinates &coordinates, RequestEntry *request);
         
-        void schedule(long clock, Signal &accessCompleted_);
+        void schedule(long clock, Signal &accessCompleted_, Signal &missCompleted_);
 };
 
 class MemoryControllerHub : public Controller
@@ -161,13 +164,16 @@ class MemoryControllerHub : public Controller
     private:
         Interconnect *cacheInterconnect_;
         
+        Signal missCompleted_;
         Signal accessCompleted_;
         Signal waitInterconnect_;
         
         Config dramconfig;
         int channelcount;
-        
+
         MemoryMapping *mapping;
+        map<W64,int> mapping_misses;
+
         MemoryController **controller;
         long clock_num, clock_den;
         long clock_rem, clock_mem;
@@ -184,6 +190,8 @@ class MemoryControllerHub : public Controller
         bool handle_interconnect_cb(void *arg);
         bool access_completed_cb(void *arg);
         bool wait_interconnect_cb(void *arg);
+
+        bool miss_completed_cb(void *arg);
         
         void cycle();
         

@@ -730,6 +730,7 @@ bool MemoryControllerHub::miss_completed_cb(void *arg)
     W64 tag = coordinates->group;
     assert(mapping_misses.find(tag) != mapping_misses.end());
     mapping_misses.erase(tag);
+	mapping->update(tag);
 
     return true;
 }
@@ -755,7 +756,7 @@ void MemoryControllerHub::dispatch(long clock)
 
                     MemoryController *mc = controller[tag_coordinates.channel];
                     if (!mc->addTransaction(clock, COMMAND_read, tag_coordinates, NULL)) continue;
-                    mapping_misses[tag] = 0;
+					mapping_misses[tag] = 0;
                 }
                 continue;
             }

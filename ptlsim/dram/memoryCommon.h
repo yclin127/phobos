@@ -11,22 +11,22 @@ enum CommandType {
     COMMAND_precharge,
     COMMAND_read,
     COMMAND_write,
-    COMMAND_read_precharge,
-    COMMAND_write_precharge,
+    COMMAND_readPre,
+    COMMAND_writePre,
     COMMAND_refresh,
     COMMAND_migrate,
     COMMAND_powerup,
     COMMAND_powerdown,
 };
 
-enum PowerType {
-    POWER_activate_precharge,
-    POWER_read,
-    POWER_write,
-    POWER_refresh,
-    POWER_migrate,
-    POWER_background,
-    POWER_total,
+enum EnergyType {
+    ENERGY_actPre,
+    ENERGY_read,
+    ENERGY_write,
+    ENERGY_refresh,
+    ENERGY_migrate,
+    ENERGY_background,
+    ENERGY_total,
 };
 
 inline const char* toString(CommandType type) {
@@ -177,8 +177,7 @@ class AssociativeTags
         }
         
         bool probe(TagType tag) {
-            tag >>= line_shift;
-            int index = tag % set_count;
+            int index = (tag >> line_shift) % set_count;
             Entry *current = sets[index];
             while (current != NULL) {
                 if (current->tag == tag) {
@@ -190,7 +189,6 @@ class AssociativeTags
         }
         
         DataType& access(TagType tag, TagType &oldtag) {
-            tag >>= line_shift;
             int index = tag % set_count;
             Entry *previous = NULL;
             Entry *current = sets[index];
@@ -208,6 +206,34 @@ class AssociativeTags
                 current->tag = tag;
             }
             return current->data;
+        }
+        
+        void invalid(TagType tag) {
+            int index = tag % set_count;
+            Entry *previous = NULL;
+            Entry *current = sets[index];
+            Entry *last = sets[index];
+            while (last->next != NULL) {
+                if (current->tag != tag) {
+                    previous = last;
+                    current = last->next;
+                }
+                last = last->next;
+            }
+            if (current->tag == tag) {
+                current->tag = -1;
+                if (current != last) {
+                    if (previous == NULL) {
+                        sets[index] = current->next;
+                        current->next = NULL;
+                        last->next = current;
+                    } else {
+                        previous->next = current->next;
+                        current->next = NULL;
+                        last->next = current;
+                    }
+                }
+            }
         }
 };
 

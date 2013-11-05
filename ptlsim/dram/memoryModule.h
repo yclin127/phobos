@@ -1,7 +1,7 @@
 #ifndef __MEMORY_MODUlE_H__
 #define __MEMORY_MODUlE_H__
 
-#include "memoryCommon.h"
+#include <memoryCommon.h>
 #include <cassert>
 
 namespace DRAM {
@@ -56,7 +56,8 @@ struct ChannelEnergy {
 };
 
 struct RankEnergy {
-    int activate_precharge;
+    int actPre_fast;
+    int actPre_slow;
     int read;
     int write;
     int refresh;
@@ -184,19 +185,20 @@ struct Config {
 
         channel_energy.clock_per_cycle = 0;
 
-        rank_energy.activate_precharge = VDD*((IDD0-IDD3N)*tRAS+(IDD0-IDD2N)*tRP)*DEVICE;
-        rank_energy.read    = VDD*(IDD4R-IDD3N)*tBL*DEVICE;
-        rank_energy.write   = VDD*(IDD4W-IDD3N)*tBL*DEVICE;
-        rank_energy.refresh = VDD*(IDD5B-IDD3N)*tRFC*DEVICE;
-        rank_energy.migrate = rank_energy.activate_precharge*4;
+        rank_energy.actPre_slow = tCK*VDD*((IDD0-IDD3N)*tRAS+(IDD0-IDD2N)*tRP)*DEVICE;
+        rank_energy.actPre_fast = rank_energy.actPre_slow;
+        rank_energy.read        = tCK*VDD*(IDD4R-IDD3N)*tBL*DEVICE;
+        rank_energy.write       = tCK*VDD*(IDD4W-IDD3N)*tBL*DEVICE;
+        rank_energy.refresh     = tCK*VDD*(IDD5B-IDD3N)*tRFC*DEVICE;
+        rank_energy.migrate     = rank_energy.actPre_slow*4;
         
-        rank_energy.active_standby_per_cycle      = VDD*IDD3N*DEVICE;
-        rank_energy.active_powerdown_per_cycle    = VDD*IDD3P*DEVICE;
-        rank_energy.precharge_standby_per_cycle   = VDD*IDD2N*DEVICE;
-        rank_energy.precharge_powerdown_per_cycle = VDD*IDD2P1*DEVICE;
+        rank_energy.active_standby_per_cycle      = tCK*VDD*IDD3N*DEVICE;
+        rank_energy.active_powerdown_per_cycle    = tCK*VDD*IDD3P*DEVICE;
+        rank_energy.precharge_standby_per_cycle   = tCK*VDD*IDD2N*DEVICE;
+        rank_energy.precharge_powerdown_per_cycle = tCK*VDD*IDD2P1*DEVICE;
     }
 
-    void cache_setup(int rcd_ratio, int ras_ratio, int rp_ratio, int wr_ratio, int cl_ratio, int mig_ratio) {
+    void cache_setup(int rcd_ratio, int ras_ratio, int rp_ratio, int wr_ratio, int cl_ratio, int mig_ratio, int ap_ratio) {
         if (rcd_ratio > 0) {
             fast_bank_timing.act_to_read   -= slow_bank_timing.act_to_read   / rcd_ratio;
             fast_bank_timing.act_to_write  -= slow_bank_timing.act_to_write  / rcd_ratio;
@@ -217,6 +219,9 @@ struct Config {
         if (mig_ratio >= 0) {
             slow_bank_timing.mig_latency   *= mig_ratio;
             fast_bank_timing.mig_latency   *= mig_ratio;
+        }
+        if (ap_ratio > 0) {
+            rank_energy.actPre_fast -= rank_energy.actPre_slow / ap_ratio;
         }
     }
 };
@@ -261,6 +266,9 @@ protected:
     
     RankData data;
     
+    int asym_mat_group;
+    int asym_mat_ratio;
+    
     long actReadyTime;
     long fawReadyTime[4];
     long readReadyTime;
@@ -282,7 +290,7 @@ public:
     RankData &getRankData(Coordinates &coordinates);
     long getReadyTime(CommandType type, Coordinates &coordinates);
     long getFinishTime(long clock, CommandType type, Coordinates &coordinates);
-    long getEnergy(PowerType type);
+    long getEnergy(EnergyType type);
     
     void cycle(long clock);
 };
@@ -315,7 +323,7 @@ public:
     RankData &getRankData(Coordinates &coordinates);
     long getReadyTime(CommandType type, Coordinates &coordinates);
     long getFinishTime(long clock, CommandType type, Coordinates &coordinates);
-    long getEnergy(PowerType type);
+    long getEnergy(EnergyType type);
     
     void cycle(long clock);
 };

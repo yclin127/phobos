@@ -20,6 +20,16 @@ struct MemoryCounter
         long migration;
         long remigration;
     } rowCounter;
+
+    struct EnergyCounter {
+        long actPre;
+        long read;
+        long write;
+        long refresh;
+        long migrate;
+        long background;
+        long total;
+    } energyCounter;
 };
 
 extern MemoryCounter memoryCounter;

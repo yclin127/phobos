@@ -59,7 +59,7 @@ long Channel::getReadyTime(CommandType type, Coordinates &coordinates)
             return clock;
             
         case COMMAND_read:
-        case COMMAND_read_precharge:
+        case COMMAND_readPre:
             clock = ranks[coordinates.rank]->getReadyTime(type, coordinates);
             clock = std::max(clock, anyReadyTime);
             if (rankSelect != coordinates.rank) {
@@ -69,7 +69,7 @@ long Channel::getReadyTime(CommandType type, Coordinates &coordinates)
             return clock;
             
         case COMMAND_write:
-        case COMMAND_write_precharge:
+        case COMMAND_writePre:
             clock = ranks[coordinates.rank]->getReadyTime(type, coordinates);
             clock = std::max(clock, anyReadyTime);
             if (rankSelect != coordinates.rank) {
@@ -109,7 +109,7 @@ long Channel::getFinishTime(long clock, CommandType type, Coordinates &coordinat
             return ranks[coordinates.rank]->getFinishTime(clock, type, coordinates);
             
         case COMMAND_read:
-        case COMMAND_read_precharge:
+        case COMMAND_readPre:
             anyReadyTime   = clock + timing->any_to_any;
             readReadyTime  = clock + timing->read_to_read;
             writeReadyTime = clock + timing->read_to_write;
@@ -123,7 +123,7 @@ long Channel::getFinishTime(long clock, CommandType type, Coordinates &coordinat
             return ranks[coordinates.rank]->getFinishTime(clock, type, coordinates);
             
         case COMMAND_write:
-        case COMMAND_write_precharge:
+        case COMMAND_writePre:
             anyReadyTime   = clock + timing->any_to_any;
             readReadyTime  = clock + timing->write_to_read;
             writeReadyTime = clock + timing->write_to_write;
@@ -146,7 +146,7 @@ long Channel::getFinishTime(long clock, CommandType type, Coordinates &coordinat
     }
 }
 
-long Channel::getEnergy(PowerType type)
+long Channel::getEnergy(EnergyType type)
 {
     long energy = 0;
     for (int rank=0; rank<rankcount; ++rank) {
@@ -175,6 +175,9 @@ Rank::Rank(Config *config)
     
     timing = &config->rank_timing;
     energy = &config->rank_energy;
+    
+    asym_mat_group = config->asym_mat_group;
+    asym_mat_ratio = config->asym_mat_ratio;
     
     actReadyTime     = 0;
     fawReadyTime[0]  = 0;
@@ -229,14 +232,14 @@ long Rank::getReadyTime(CommandType type, Coordinates &coordinates)
             return clock;
             
         case COMMAND_read:
-        case COMMAND_read_precharge:
+        case COMMAND_readPre:
             clock = banks[coordinates.bank]->getReadyTime(type, coordinates);
             clock = std::max(clock, readReadyTime);
             
             return clock;
             
         case COMMAND_write:
-        case COMMAND_write_precharge:
+        case COMMAND_writePre:
             clock = banks[coordinates.bank]->getReadyTime(type, coordinates);
             clock = std::max(clock, writeReadyTime);
             
@@ -278,7 +281,11 @@ long Rank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             fawReadyTime[2] = fawReadyTime[3];
             fawReadyTime[3] = clock + timing->act_to_faw;
             
-            actPreEnergy += energy->activate_precharge;
+            if (coordinates.place % asym_mat_ratio == 0) {
+                actPreEnergy += energy->actPre_fast;
+            } else {
+                actPreEnergy += energy->actPre_slow;
+            }
 
             opencount += 1;
             assert(opencount <= bankcount);
@@ -292,7 +299,7 @@ long Rank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             return banks[coordinates.bank]->getFinishTime(clock, type, coordinates);
             
         case COMMAND_read:
-        case COMMAND_read_precharge:
+        case COMMAND_readPre:
             readReadyTime  = clock + timing->read_to_read;
             writeReadyTime = clock + timing->read_to_write;
             
@@ -301,7 +308,7 @@ long Rank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             return banks[coordinates.bank]->getFinishTime(clock, type, coordinates);
             
         case COMMAND_write:
-        case COMMAND_write_precharge:
+        case COMMAND_writePre:
             readReadyTime  = clock + timing->write_to_read;
             writeReadyTime = clock + timing->write_to_write;
             
@@ -363,22 +370,22 @@ long Rank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
     }
 }
 
-long Rank::getEnergy(PowerType type)
+long Rank::getEnergy(EnergyType type)
 {
     switch (type) {
-        case POWER_activate_precharge:
+        case ENERGY_actPre:
             return actPreEnergy;
-        case POWER_read:
+        case ENERGY_read:
             return readEnergy;
-        case POWER_write:
+        case ENERGY_write:
             return writeEnergy;
-        case POWER_refresh:
+        case ENERGY_refresh:
             return refreshEnergy;
-        case POWER_migrate:
+        case ENERGY_migrate:
             return migrateEnergy;
-        case POWER_background:
+        case ENERGY_background:
             return backgroundEnergy;
-        case POWER_total:
+        case ENERGY_total:
             return actPreEnergy + readEnergy + writeEnergy + 
                 refreshEnergy + migrateEnergy + backgroundEnergy;
         default:
@@ -441,13 +448,13 @@ long Bank::getReadyTime(CommandType type, Coordinates &coordinates)
             return preReadyTime;
             
         case COMMAND_read:
-        case COMMAND_read_precharge:
+        case COMMAND_readPre:
             assert(readReadyTime != -1);
             
             return readReadyTime;
             
         case COMMAND_write:
-        case COMMAND_write_precharge:
+        case COMMAND_writePre:
             assert(writeReadyTime != -1);
             
             return writeReadyTime;
@@ -503,7 +510,7 @@ long Bank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             return clock;
             
         case COMMAND_read:
-        case COMMAND_read_precharge:
+        case COMMAND_readPre:
             assert(readReadyTime != -1);
             assert(clock >= readReadyTime);
             
@@ -524,7 +531,7 @@ long Bank::getFinishTime(long clock, CommandType type, Coordinates &coordinates)
             return clock + timing->read_latency;
             
         case COMMAND_write:
-        case COMMAND_write_precharge:
+        case COMMAND_writePre:
             assert(writeReadyTime != -1);
             assert(clock >= writeReadyTime);
             

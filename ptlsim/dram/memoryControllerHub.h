@@ -17,6 +17,7 @@ struct RequestEntry : public FixStateListObject
     bool issued;
     bool translated;
     bool detected;
+    bool updated;
 
     void init() {
         request = NULL;
@@ -24,6 +25,7 @@ struct RequestEntry : public FixStateListObject
         issued = false;
         translated = false;
         detected = false;
+        updated = false;
     }
 
     ostream& print(ostream &os) const {
@@ -45,6 +47,7 @@ class MemoryControllerHub : public Controller
     private:
         Interconnect *cacheInterconnect_;
         
+        Signal missCompleted_;
         Signal accessCompleted_;
         Signal waitInterconnect_;
         
@@ -52,7 +55,10 @@ class MemoryControllerHub : public Controller
         int channelcount;
         
         MemoryMapping *mapping;
+        map<W64,int> mapping_misses;
+
         MemoryController **controller;
+        
         long clock_num, clock_den;
         long clock_rem, clock_mem;
         
@@ -70,6 +76,7 @@ class MemoryControllerHub : public Controller
         bool wait_interconnect_cb(void *arg);
         
         void cycle();
+        bool miss_completed_cb(void *arg);
         
         void annul_request(MemoryRequest *request);
         void dump_configuration(YAML::Emitter &out) const;

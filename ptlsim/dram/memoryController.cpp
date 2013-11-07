@@ -15,6 +15,7 @@ MemoryController::MemoryController(Config &config, MemoryMapping &mapping, int c
     
     rankcount = config.rankcount;
     bankcount = config.bankcount;
+    rowcount = config.rowcount;
     groupcount = config.groupcount;
     indexcount = config.indexcount;
     refresh_interval = config.rank_timing.refresh_interval;
@@ -77,7 +78,11 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates &coo
     int64_t readyTime, issueTime, finishTime;
     
     readyTime = channel->getReadyTime(type, coordinates);
-    issueTime = clock;
+    if (clock != -1) {
+        issueTime = clock;
+    } else {
+        issueTime = readyTime;
+    }
     if (readyTime > issueTime) return false;
     
     CommandEntry *queueEntry = pendingCommands_.alloc();
@@ -99,7 +104,7 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates &coo
     return true;
 }
 
-void MemoryController::schedule(long clock, Signal &accessCompleted_)
+void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &missCompleted_)
 {
     /** Transaction to Command */
     
@@ -194,6 +199,7 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
             bank.hitCount += 1;
 
             if (transaction->request) {
+                memoryCounter.accessCounter.count += 1;
                 if (transaction->missed) {
                     if (coordinates.place % asym_mat_ratio == 0) {
                         memoryCounter.accessCounter.fastSegment += 1;
@@ -257,7 +263,11 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_)
                 case COMMAND_readPre:
                 case COMMAND_write:
                 case COMMAND_writePre:
-                    accessCompleted_.emit(command->request);
+                    if (command->request) {
+                        accessCompleted_.emit(command->request);
+                    } else if (command->type == COMMAND_read) {
+                        missCompleted_.emit(&command->coordinates);
+                    }
                     break;
                     
                 default:

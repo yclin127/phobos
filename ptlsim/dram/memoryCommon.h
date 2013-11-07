@@ -154,10 +154,10 @@ class AssociativeTags
         Entry **sets;
         
     public:
-        AssociativeTags(int nset, int nway, int shift) {
-            set_count = nset;
+        AssociativeTags(int size, int nway, int line) {
+            set_count = size/nway/line;
             way_count = nway;
-            line_shift = shift;
+            line_shift = log_2(line);
             entries = new Entry[set_count*way_count];
             sets    = new Entry*[set_count];
             
@@ -177,7 +177,8 @@ class AssociativeTags
         }
         
         bool probe(TagType tag) {
-            int index = (tag >> line_shift) % set_count;
+            tag >>= line_shift;
+            int index = tag % set_count;
             Entry *current = sets[index];
             while (current != NULL) {
                 if (current->tag == tag) {
@@ -189,6 +190,7 @@ class AssociativeTags
         }
         
         DataType& access(TagType tag, TagType &oldtag) {
+            tag >>= line_shift;
             int index = tag % set_count;
             Entry *previous = NULL;
             Entry *current = sets[index];
@@ -206,34 +208,6 @@ class AssociativeTags
                 current->tag = tag;
             }
             return current->data;
-        }
-        
-        void invalid(TagType tag) {
-            int index = tag % set_count;
-            Entry *previous = NULL;
-            Entry *current = sets[index];
-            Entry *last = sets[index];
-            while (last->next != NULL) {
-                if (current->tag != tag) {
-                    previous = last;
-                    current = last->next;
-                }
-                last = last->next;
-            }
-            if (current->tag == tag) {
-                current->tag = -1;
-                if (current != last) {
-                    if (previous == NULL) {
-                        sets[index] = current->next;
-                        current->next = NULL;
-                        last->next = current;
-                    } else {
-                        previous->next = current->next;
-                        current->next = NULL;
-                        last->next = current;
-                    }
-                }
-            }
         }
 };
 

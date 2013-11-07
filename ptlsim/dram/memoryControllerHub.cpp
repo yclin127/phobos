@@ -50,7 +50,8 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         option(asym_det_threshold, "asym_det_threshold", 4);
         option(asym_det_cache_size, "asym_det_cache_size", 1024);
 
-        option(asym_map_cache_size, "asym_map_cache_size", 4096);
+        option(asym_map_cache_size, "asym_map_cache_size", 256);
+        asym_map_cache_size *= 1024;
 
         option(asym_mat_ratio, "asym_mat_ratio", 1);
         option(asym_mat_group, "asym_mat_group", 1);
@@ -60,7 +61,7 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         option(asym_mat_rp_ratio, "asym_mat_rp_ratio", 0);
         option(asym_mat_wr_ratio, "asym_mat_wr_ratio", 0);
         option(asym_mat_cl_ratio, "asym_mat_cl_ratio", 0);
-        option(asym_mat_mig_ratio, "asym_mat_mig_ratio", 2);
+        option(asym_mat_mig_ratio, "asym_mat_mig_ratio", 3);
         option(asym_mat_ap_ratio, "asym_mat_ap_ratio", 2);
 #undef option
     }
@@ -123,6 +124,9 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     for (int channel=0; channel<channelcount; ++channel) {
         controller[channel] = new MemoryController(dramconfig, *mapping, channel);
     }
+    
+    SET_SIGNAL_CB(name, "_Miss_Completed", missCompleted_,
+            &MemoryControllerHub::miss_completed_cb);
     
     SET_SIGNAL_CB(name, "_Access_Completed", accessCompleted_,
             &MemoryControllerHub::access_completed_cb);
@@ -322,11 +326,25 @@ void MemoryControllerHub::dispatch(long clock)
         mem_stat = request->request->get_memoryStat();
 
         if (!request->translated) {
-            if (!mapping->translate(request->coordinates)) continue;
+            if (!mapping->translate(request->coordinates)) {
+                W64 tag = mapping->make_index_tag(request->coordinates);
+                if (mapping_misses.find(tag) == mapping_misses.end() &&
+                    mapping_misses.size() < 8) {
+                    Coordinates tag_coordinates;
+                    mapping->extract(tag, tag_coordinates);
+                    tag_coordinates.row += dramconfig.rowcount;
+                    tag_coordinates.group = tag;
+                    tag_coordinates.place = 0;
+
+                    MemoryController *mc = controller[tag_coordinates.channel];
+                    if (!mc->addTransaction(clock, COMMAND_read, tag_coordinates, NULL)) continue;
+                    mapping_misses[tag] = clock;
+                    memoryCounter.rowCounter.query += 1;
+                }
+                continue;
+            }
 
             request->detected = mapping->detect(request->coordinates);
-
-            memoryCounter.accessCounter.count += 1;
             if (!mapping->allocate(request->coordinates)) {
                 memoryCounter.rowCounter.count += 1;
             }
@@ -342,6 +360,20 @@ void MemoryControllerHub::dispatch(long clock)
         }
         
         if (request->detected) {
+            if (!request->updated) {
+                W64 tag = mapping->make_index_tag(request->coordinates);
+                Coordinates tag_coordinates;
+                mapping->extract(tag, tag_coordinates);
+                tag_coordinates.row += dramconfig.rowcount;
+                tag_coordinates.group = tag;
+                tag_coordinates.place = 0;
+
+                MemoryController *mc = controller[tag_coordinates.channel];
+                if (!mc->addTransaction(clock, COMMAND_write, tag_coordinates, NULL)) continue;
+
+                request->updated = true;
+            }
+
             MemoryController *mc = controller[request->coordinates.channel];
             if (!mc->addTransaction(clock, COMMAND_migrate, request->coordinates, NULL)) continue;
 
@@ -355,6 +387,18 @@ void MemoryControllerHub::dispatch(long clock)
     }
 }
 
+bool MemoryControllerHub::miss_completed_cb(void *arg)
+{
+    Coordinates *coordinates = (Coordinates*)arg;
+    
+    W64 tag = coordinates->group;
+    assert(mapping_misses.find(tag) != mapping_misses.end());
+    mapping_misses.erase(tag);
+    mapping->update(tag);
+
+    return true;
+}
+
 void MemoryControllerHub::cycle()
 {
     clock_rem += clock_num;
@@ -362,7 +406,7 @@ void MemoryControllerHub::cycle()
         dispatch(clock_mem);
         for (int channel=0; channel<channelcount; ++channel) {
             controller[channel]->channel->cycle(clock_mem);
-            controller[channel]->schedule(clock_mem, accessCompleted_);
+            controller[channel]->schedule(clock_mem, accessCompleted_, missCompleted_);
         }
         clock_mem += 1;
         clock_rem -= clock_den;

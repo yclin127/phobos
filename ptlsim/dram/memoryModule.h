@@ -190,7 +190,7 @@ struct Config {
         rank_energy.read        = tCK*VDD*(IDD4R-IDD3N)*tBL*DEVICE;
         rank_energy.write       = tCK*VDD*(IDD4W-IDD3N)*tBL*DEVICE;
         rank_energy.refresh     = tCK*VDD*(IDD5B-IDD3N)*tRFC*DEVICE;
-        rank_energy.migrate     = rank_energy.actPre_slow*4;
+        rank_energy.migrate     = rank_energy.actPre_slow;
         
         rank_energy.active_standby_per_cycle      = tCK*VDD*IDD3N*DEVICE;
         rank_energy.active_powerdown_per_cycle    = tCK*VDD*IDD3P*DEVICE;
@@ -219,6 +219,7 @@ struct Config {
         if (mig_ratio >= 0) {
             slow_bank_timing.mig_latency   *= mig_ratio;
             fast_bank_timing.mig_latency   *= mig_ratio;
+            rank_energy.migrate            *= mig_ratio;
         }
         if (ap_ratio > 0) {
             rank_energy.actPre_fast -= rank_energy.actPre_slow / ap_ratio;

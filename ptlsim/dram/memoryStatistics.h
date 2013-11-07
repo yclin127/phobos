@@ -17,6 +17,7 @@ struct MemoryCounter
 
     struct RowCounter {
         long count;
+        long query;
         long migration;
         long remigration;
     } rowCounter;

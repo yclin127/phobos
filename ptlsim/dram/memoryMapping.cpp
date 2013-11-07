@@ -3,8 +3,8 @@
 using namespace DRAM;
 
 MemoryMapping::MemoryMapping(Config &config) : 
-    det_counter(config.asym_det_cache_size/4, 4, MAPPING_TAG_SHIFT),
-    map_cache(config.asym_map_cache_size/4, 4, log_2(config.offsetcount)),
+    det_counter(config.asym_det_cache_size, 4, 1),
+    map_cache(config.asym_map_cache_size, 4, config.offsetcount),
     mapping_forward(config.clustercount, config.groupcount, config.indexcount, -1),
     mapping_backward(config.clustercount, config.groupcount, config.indexcount, -1),
     mapping_accesses(config.clustercount, config.groupcount, config.indexcount, 0),
@@ -68,8 +68,6 @@ void MemoryMapping::extract(W64 address, Coordinates &coordinates)
     row = (row << bitfields.bank.width) | coordinates.bank;
     row = (row << bitfields.row.width) | coordinates.row;
 
-    row ^= (row >> bitfields.group.shift) << bitfields.index.shift;
-
     coordinates.cluster = bitfields.cluster.value(row);
     coordinates.group   = bitfields.group.value(row);
     coordinates.index   = bitfields.index.value(row);
@@ -78,14 +76,22 @@ void MemoryMapping::extract(W64 address, Coordinates &coordinates)
 
 bool MemoryMapping::translate(Coordinates &coordinates)
 {
-    /*W64 tag, oldtag;
-    tag = make_forward_tag(coordinates.group, coordinates.index) >> bitfields.offset.width;
-    map_cache.proble(tag, oldtag);*/
-
-    coordinates.place = mapping_forward.item(
+    int place = mapping_forward.item(
         coordinates.cluster, coordinates.group, coordinates.index);
 
+    W64 tag = make_index_tag(coordinates)/mat_ratio;
+    if (!map_cache.probe(tag)) return false;
+
+    coordinates.place = place;
+
     return true;
+}
+
+void MemoryMapping::update(W64 tag)
+{
+    W64 oldtag;
+    assert(tag != (W64)-1);
+    map_cache.access(tag/mat_ratio, oldtag);
 }
 
 bool MemoryMapping::allocate(Coordinates &coordinates)
@@ -100,7 +106,7 @@ bool MemoryMapping::allocate(Coordinates &coordinates)
 bool MemoryMapping::detect(Coordinates &coordinates)
 {
     W64 tag, oldtag;
-    tag = make_forward_tag(coordinates.cluster, coordinates.group, coordinates.index);
+    tag = make_index_tag(coordinates);
     int& count = det_counter.access(tag, oldtag);
     if (oldtag != tag) count = 0;
     count += 1;
@@ -121,7 +127,7 @@ bool MemoryMapping::promote(long clock, Coordinates &coordinates)
     mapping_forward.swap(cluster, group, index, indexP);
     mapping_backward.swap(cluster, group, place, placeP);
 
-    rep_serial = (rep_serial + mat_ratio) % mat_group;    
+    rep_serial = (rep_serial + mat_ratio) % mat_group;
 
     short &migrations = mapping_migrations.item(
         coordinates.cluster, coordinates.group, coordinates.index);

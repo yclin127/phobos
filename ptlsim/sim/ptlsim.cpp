@@ -1408,6 +1408,7 @@ extern "C" uint8_t ptl_simulate() {
     << DRAM::memoryCounter.rowCounter.count << " rows, " 
     << DRAM::memoryCounter.rowCounter.migration << " moves, " 
     << DRAM::memoryCounter.rowCounter.remigration << " redoes, "
+    << DRAM::memoryCounter.rowCounter.query << " queries, "
     << DRAM::memoryCounter.energyCounter.actPre << " actPre, "
     << DRAM::memoryCounter.energyCounter.read << " read, "
     << DRAM::memoryCounter.energyCounter.write << " write, "
@@ -1485,7 +1486,8 @@ extern "C" void update_progress() {
       << DRAM::memoryCounter.accessCounter.queueLength << " queue, "
       << DRAM::memoryCounter.rowCounter.count << " rows, " 
       << DRAM::memoryCounter.rowCounter.migration << " moves, " 
-      << DRAM::memoryCounter.rowCounter.remigration << " redoes";
+      << DRAM::memoryCounter.rowCounter.remigration << " redoes, "
+      << DRAM::memoryCounter.rowCounter.query << " queries, ";
 #else
     sb << "Completed " << intstring(sim_cycle, 13) << " cycles, " << intstring(total_insns_committed, 13) << " commits: " <<
       intstring((W64)cycles_per_sec, 9) << " Hz, " << intstring((W64)insns_per_sec, 9) << " insns/sec";

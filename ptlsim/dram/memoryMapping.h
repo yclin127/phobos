@@ -8,8 +8,6 @@
 
 namespace DRAM {
 
-#define MAPPING_TAG_SHIFT 0
-#define MAPPING_TAG_SIZE (1<<(MAPPING_TAG_SHIFT))
 
 class MemoryMapping
 {
@@ -28,21 +26,6 @@ class MemoryMapping
         Tier3<short> mapping_accesses;
         Tier3<short> mapping_migrations;
         Tier3<long> mapping_timestamp;
-
-        W64 make_forward_tag(int cluster, int group, int index) {
-            W64 tag = (W64)cluster;
-            tag = (tag << bitfields.group.width) | group;
-            tag = (tag << 1) | 0;
-            tag = (tag << bitfields.index.width) | index;
-            return tag << MAPPING_TAG_SIZE;
-        }
-        W64 make_backward_tag(int cluster, int group, int place) {
-            W64 tag = (W64)cluster;
-            tag = (tag << bitfields.group.width) | group;
-            tag = (tag << 1) | 1;
-            tag = (tag << bitfields.index.width) | place;
-            return tag << MAPPING_TAG_SIZE;
-        }
         
     public:
         MemoryMapping(Config &config);
@@ -50,10 +33,23 @@ class MemoryMapping
         
         void extract(W64 address, Coordinates &coordinates);
         bool translate(Coordinates &coordinates);
+        void update(W64 tag);
 
         bool allocate(Coordinates &coordinates);
         bool detect(Coordinates &coordinates);
         bool promote(long clock, Coordinates &coordinates);
+
+        W64 make_index_tag(Coordinates &coordinates) {
+            W64 tag = (W64)coordinates.cluster;
+            tag = (tag << bitfields.group.width) | coordinates.group;
+            tag = (tag << bitfields.index.width) | coordinates.index;
+            return tag;
+        }
+        W64 make_group_tag(Coordinates &coordinates) {
+            W64 tag = (W64)coordinates.cluster;
+            tag = (tag << bitfields.group.width) | coordinates.group;
+            return tag;
+        }
 };
 
 };

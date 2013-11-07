@@ -61,6 +61,7 @@ class MemoryController
     
         int rankcount;
         int bankcount;
+        int rowcount;
         int groupcount;
         int indexcount;
         int refresh_interval;
@@ -77,7 +78,7 @@ class MemoryController
         bool addTransaction(long clock, CommandType type, Coordinates &coordinates, void *request);
         bool addCommand(long clock, CommandType type, Coordinates &coordinates, void *request);
         
-        void schedule(long clock, Signal &accessCompleted_);
+        void schedule(long clock, Signal &accessCompleted_, Signal &missCompleted_);
 };
 
 };

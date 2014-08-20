@@ -1104,8 +1104,8 @@ namespace OOO_CORE_MODEL {
         W64 pause_counter;
 
         // statistics:
-        W64 total_uops_committed;
-        W64 total_insns_committed;
+        W64 total_uops_committed_;
+        W64 total_insns_committed_;
         int dispatch_deadlock_countdown;
 #ifdef MULTI_IQ
         int issueq_count[4]; // number of occupied issuequeue entries

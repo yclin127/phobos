@@ -47,6 +47,9 @@ void MemoryRequest::init(W8 coreId,
 		W64 physicalAddress,
 		int robId,
 		W64 cycles,
+#if 1 /* yclin */
+		W64 insns,
+#endif
 		bool isInstruction,
 		W64 ownerRIP,
 		W64 ownerUUID,
@@ -57,6 +60,9 @@ void MemoryRequest::init(W8 coreId,
 	physicalAddress_ = physicalAddress;
 	robId_ = robId;
 	cycles_ = cycles;
+#if 1 /* yclin */
+	insns_ = insns;
+#endif
 	ownerRIP_ = ownerRIP;
 	ownerUUID_ = ownerUUID;
 	refCounter_ = 0; // or maybe 1
@@ -79,6 +85,9 @@ void MemoryRequest::init(MemoryRequest *request)
 	physicalAddress_ = request->physicalAddress_;
 	robId_ = request->robId_;
 	cycles_ = request->cycles_;
+#if 1 /* yclin */
+	insns_ = request->insns_;
+#endif
 	ownerRIP_ = request->ownerRIP_;
 	ownerUUID_ = request->ownerUUID_;
 	refCounter_ = 0; // or maybe 1

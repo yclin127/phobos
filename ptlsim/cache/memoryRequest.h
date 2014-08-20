@@ -67,6 +67,7 @@ class MemoryRequest: public selfqueuelink
 			physicalAddress_ = 0;
 			robId_ = 0;
 			cycles_ = 0;
+			insns_ = 0;
 			ownerRIP_ = 0;
 			refCounter_ = 0; // or maybe 1
 			opType_ = MEMORY_OP_READ;
@@ -91,6 +92,7 @@ class MemoryRequest: public selfqueuelink
 				W64 physicalAddress,
 				int robId,
 				W64 cycles,
+				W64 insns,
 				bool isInstruction,
 				W64 ownerRIP,
 				W64 ownerUUID,
@@ -137,6 +139,8 @@ class MemoryRequest: public selfqueuelink
 
 		W64 get_init_cycles() { return cycles_; }
 
+		W64 get_init_insns() { return insns_; }
+
 		stringbuf& get_history() { return *history; }
 
 		bool is_kernel() {
@@ -180,6 +184,7 @@ class MemoryRequest: public selfqueuelink
 		bool isData_;
 		int robId_;
 		W64 cycles_;
+		W64 insns_;
 		W64 ownerRIP_;
 		W64 ownerUUID_;
 		int refCounter_;

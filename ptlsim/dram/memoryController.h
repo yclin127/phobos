@@ -51,20 +51,9 @@ struct CommandEntry : public FixStateListObject
 class MemoryController
 {
     private:
-        int max_row_hits;
-        int max_row_idle;
-    
-        int asym_mat_group;
-        int asym_mat_ratio;
+        const Config &dramconfig;
 
         int channel_id;
-    
-        int rankcount;
-        int bankcount;
-        int rowcount;
-        int groupcount;
-        int indexcount;
-        int refresh_interval;
 
     public:
         MemoryController(Config &config, MemoryMapping &mapping, int chid);
@@ -78,7 +67,7 @@ class MemoryController
         bool addTransaction(long clock, CommandType type, Coordinates &coordinates, void *request);
         bool addCommand(long clock, CommandType type, Coordinates &coordinates, void *request);
         
-        void schedule(long clock, Signal &accessCompleted_, Signal &missCompleted_);
+        void schedule(long clock, Signal &accessCompleted_, Signal &lookupCompleted_);
 };
 
 };

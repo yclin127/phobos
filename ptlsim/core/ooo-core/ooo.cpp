@@ -188,8 +188,8 @@ void ThreadContext::reset() {
 
     pause_counter = 0;
 
-    total_uops_committed = 0;
-    total_insns_committed = 0;
+    total_uops_committed_ = 0;
+    total_insns_committed_ = 0;
     dispatch_deadlock_countdown = 0;
 #ifdef MULTI_IQ
     foreach(i, 4){
@@ -1152,10 +1152,10 @@ void OooCore::print_smt_state(ostream& os) {
     foreach (i, threadcount) {
         ThreadContext* thread = threads[i];
         os << "Thread ", i, ":", endl,
-           "  total_uops_committed ", thread->total_uops_committed, " iterations ", iterations, endl,
-           "  uipc ", double(thread->total_uops_committed) / double(iterations), endl,
-           "  total_insns_committed ",  thread->total_insns_committed, " iterations ", iterations, endl,
-           "  ipc ", double(thread->total_insns_committed) / double(iterations), endl;
+           "  total_uops_committed ", thread->total_uops_committed_, " iterations ", iterations, endl,
+           "  uipc ", double(thread->total_uops_committed_) / double(iterations), endl,
+           "  total_insns_committed ",  thread->total_insns_committed_, " iterations ", iterations, endl,
+           "  ipc ", double(thread->total_insns_committed_) / double(iterations), endl;
     }
 }
 

@@ -1756,7 +1756,7 @@ int ReorderBufferEntry::issueload(LoadStoreQueueEntry& state, Waddr& origaddr, W
     Memory::MemoryRequest *request = core.memoryHierarchy->get_free_request(core.get_coreid());
     assert(request != NULL);
 
-    request->init(core.get_coreid(), threadid, state.physaddr << 3, idx, sim_cycle,
+    request->init(core.get_coreid(), threadid, state.physaddr << 3, idx, sim_cycle, total_insns_committed,
             false, uop.rip.rip, uop.uuid, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&core.dcache_signal);
 #if 1 /* yclin */
@@ -2074,7 +2074,7 @@ rob_cont:
     Memory::MemoryRequest *request = core.memoryHierarchy->get_free_request(core.get_coreid());
     assert(request != NULL);
 
-    request->init(core.get_coreid(), threadid, pteaddr, idx, sim_cycle,
+    request->init(core.get_coreid(), threadid, pteaddr, idx, sim_cycle, total_insns_committed,
             false, uop.rip.rip, uop.uuid, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&core.dcache_signal);
 #if 1 /* yclin */

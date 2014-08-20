@@ -5,6 +5,16 @@
 
 namespace DRAM {
 
+enum RequestStage {
+    STAGE_unknown,
+    STAGE_translate,
+    STAGE_issue,
+    STAGE_update,
+    STAGE_migrate,
+    STAGE_finish,
+    STAGE_annul,
+};
+
 struct RequestEntry : public FixStateListObject
 {
     CommandType type;
@@ -13,19 +23,13 @@ struct RequestEntry : public FixStateListObject
     MemoryRequest *request;
     Controller *source;
 
-    bool annuled;
-    bool issued;
-    bool translated;
-    bool detected;
-    bool updated;
+    bool respounded;
+    RequestStage stage;
 
     void init() {
         request = NULL;
-        annuled = false;
-        issued = false;
-        translated = false;
-        detected = false;
-        updated = false;
+        respounded = false; 
+        stage = STAGE_unknown;
     }
 
     ostream& print(ostream &os) const {
@@ -33,8 +37,8 @@ struct RequestEntry : public FixStateListObject
             os << "Request{", *request, "} ";
         if (source)
             os << "source[", source->get_name(), "] ";
-        os << "annuled[", annuled, "] ";
-        os << "issued[", issued, "] ";
+        //os << "annuled[", annuled, "] ";
+        //os << "issued[", issued, "] ";
         os << endl;
         return os;
     }
@@ -47,7 +51,7 @@ class MemoryControllerHub : public Controller
     private:
         Interconnect *cacheInterconnect_;
         
-        Signal missCompleted_;
+        Signal lookupCompleted_;
         Signal accessCompleted_;
         Signal waitInterconnect_;
         
@@ -55,7 +59,7 @@ class MemoryControllerHub : public Controller
         int channelcount;
         
         MemoryMapping *mapping;
-        map<W64,int> mapping_misses;
+        map<W64,int> lookup_queue;
 
         MemoryController **controller;
         
@@ -63,7 +67,9 @@ class MemoryControllerHub : public Controller
         long clock_rem, clock_mem;
         
         FixStateList<RequestEntry, MEM_REQ_NUM> pendingRequests_;
+        void issue(RequestEntry *request, int cycle, W64 address);
         void dispatch(long clock);
+        void retire(RequestEntry *request);
         
     public:
         MemoryControllerHub(W8 coreid, const char *name, MemoryHierarchy *memoryHierarchy, int type);
@@ -76,7 +82,7 @@ class MemoryControllerHub : public Controller
         bool wait_interconnect_cb(void *arg);
         
         void cycle();
-        bool miss_completed_cb(void *arg);
+        bool lookup_completed_cb(void *arg);
         
         void annul_request(MemoryRequest *request);
         void dump_configuration(YAML::Emitter &out) const;

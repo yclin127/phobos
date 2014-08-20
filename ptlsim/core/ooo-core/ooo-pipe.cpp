@@ -144,7 +144,7 @@ itlb_walk_finish:
     Memory::MemoryRequest *request = core.memoryHierarchy->get_free_request(core.get_coreid());
     assert(request != NULL);
 
-    request->init(core.get_coreid(), threadid, pteaddr, 0, sim_cycle,
+    request->init(core.get_coreid(), threadid, pteaddr, 0, sim_cycle, total_insns_committed,
             true, 0, 0, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&core.icache_signal);
 #if 1 /* yclin */
@@ -610,7 +610,7 @@ bool ThreadContext::fetch() {
             Memory::MemoryRequest *request = core.memoryHierarchy->get_free_request(core.get_coreid());
             assert(request != NULL);
 
-            request->init(core.get_coreid(), threadid, physaddr, 0, sim_cycle,
+            request->init(core.get_coreid(), threadid, physaddr, 0, sim_cycle, total_insns_committed,
                     true, 0, 0, Memory::MEMORY_OP_READ);
             request->set_coreSignal(&core.icache_signal);
 #if 1 /* yclin */
@@ -2192,7 +2192,7 @@ int ReorderBufferEntry::commit() {
             assert(request != NULL);
 
             request->init(core.get_coreid(), threadid, lsq->physaddr << 3, 0,
-                    sim_cycle, false, uop.rip.rip, uop.uuid,
+                    sim_cycle, total_insns_committed, false, uop.rip.rip, uop.uuid,
                     Memory::MEMORY_OP_WRITE);
             request->set_coreSignal(&core.dcache_signal);
 #if 1 /* yclin */
@@ -2286,7 +2286,7 @@ int ReorderBufferEntry::commit() {
     if likely (uop.eom) {
         total_insns_committed++;
         thread.thread_stats.commit.insns++;
-        thread.total_insns_committed++;
+        thread.total_insns_committed_++;
 
 #ifdef TRACE_RIP
             ptl_rip_trace << "commit_rip: ",
@@ -2304,7 +2304,7 @@ int ReorderBufferEntry::commit() {
 
     total_uops_committed++;
     thread.thread_stats.commit.uops++;
-    thread.total_uops_committed++;
+    thread.total_uops_committed_++;
 
     bool uop_is_eom = uop.eom;
     bool uop_is_barrier = isclass(uop.opcode, OPCLASS_BARRIER);

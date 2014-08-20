@@ -1957,7 +1957,7 @@ bool AtomThread::fetch_from_icache()
             get_free_request(core.get_coreid());
         assert(request != NULL);
 
-        request->init(core.get_coreid(), threadid, physaddr, 0, sim_cycle,
+        request->init(core.get_coreid(), threadid, physaddr, 0, sim_cycle, total_insns_committed,
                 true, fetchrip.rip, 0, Memory::MEMORY_OP_READ);
         request->set_coreSignal(&icache_signal);
 
@@ -2090,7 +2090,7 @@ itlb_walk_finish:
         get_free_request(core.get_coreid());
     assert(request != NULL);
 
-    request->init(core.get_coreid(), threadid, pteaddr, 0, sim_cycle,
+    request->init(core.get_coreid(), threadid, pteaddr, 0, sim_cycle, total_insns_committed,
             true, fetchrip.rip, 0, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&icache_signal);
 
@@ -2147,7 +2147,7 @@ dtlb_walk_finish:
         get_free_request(core.get_coreid());
     assert(request != NULL);
 
-    request->init(core.get_coreid(), threadid, pteaddr, 0, sim_cycle,
+    request->init(core.get_coreid(), threadid, pteaddr, 0, sim_cycle, total_insns_committed,
             false, 0, 0, Memory::MEMORY_OP_READ);
     request->set_coreSignal(&dcache_signal);
 
@@ -2377,7 +2377,7 @@ bool AtomThread::access_dcache(Waddr addr, W64 rip, W8 type, W64 uuid)
     assert(request);
 
     request->init(core.get_coreid(), threadid, addr, 0,
-            sim_cycle, false, rip, uuid, (Memory::OP_TYPE)type);
+            sim_cycle, total_insns_committed, false, rip, uuid, (Memory::OP_TYPE)type);
     request->set_coreSignal(&dcache_signal);
 
     st_dcache.accesses++;

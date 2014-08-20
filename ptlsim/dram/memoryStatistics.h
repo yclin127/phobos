@@ -9,7 +9,6 @@ struct MemoryCounter
 {
     struct AccessCounter {
         long count;
-        long queueLength;
         long rowBuffer;
         long fastSegment;
         long slowSegment;
@@ -22,7 +21,7 @@ struct MemoryCounter
         long remigration;
     } rowCounter;
 
-    struct EnergyCounter {
+    /*struct EnergyCounter {
         long actPre;
         long read;
         long write;
@@ -30,10 +29,54 @@ struct MemoryCounter
         long migrate;
         long background;
         long total;
-    } energyCounter;
+    } energyCounter;*/
+
+    MemoryCounter() {
+        memset(&accessCounter, 0, sizeof(accessCounter));
+        memset(&rowCounter, 0, sizeof(rowCounter));
+    }
+
+    friend superstl::stringbuf& operator<< (superstl::stringbuf& sb, 
+        const MemoryCounter& mc) {
+        sb
+        << mc.accessCounter.count << " accesses, " 
+        << mc.accessCounter.rowBuffer << " hits, " 
+        << mc.accessCounter.fastSegment << " fast, " 
+        << mc.accessCounter.slowSegment << " slow, " 
+        << mc.rowCounter.count << " rows, " 
+        << mc.rowCounter.migration << " moves, " 
+        << mc.rowCounter.remigration << " redoes, "
+        << mc.rowCounter.query << " queries, ";
+        return sb;
+    }
 };
 
+/*struct MemoryDistribution
+{
+    std::map<long, long> dist_accesses;
+    std::map<long, long> dist_intervals;
+    std::map<long, long> dist_histories;
+
+    MemoryDistribution() {
+    }
+
+    friend std::ostream& operator<< (std::ostream& os, 
+        const MemoryDistribution& md) {
+        for (map<long, long>::const_iterator it = md.dist_accesses.begin(); 
+            it != md.dist_accesses.end(); ++it)
+            os << "access " << it->first << " " << it->second << endl;
+        for (map<long, long>::const_iterator it = md.dist_intervals.begin();
+            it != md.dist_intervals.end(); ++it)
+            os << "interval " << it->first << " " << it->second << endl;
+        for (map<long, long>::const_iterator it = md.dist_histories.begin();
+            it != md.dist_histories.end(); ++it)
+            os << "history " << it->first << " " << it->second << endl;
+        return os;
+    }
+};*/
+
 extern MemoryCounter memoryCounter;
+//extern MemoryDistribution memoryDistribution;
 
 struct MemoryStatable : public Statable
 {

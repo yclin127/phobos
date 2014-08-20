@@ -62,6 +62,8 @@ struct Coordinates {
     int group;
     int index;
     int place;
+
+    long tag;
     
     friend inline std::ostream &operator <<(std::ostream &os, Coordinates &coordinates) {
         /*os << "{"
@@ -108,7 +110,7 @@ inline int log_2(long value) {
     for (result=0; (1L<<result)<value; result+=1);
     return result;
 }
-inline bool is_pow_2(long x) {
+inline bool is_pow_of_2(long x) {
     return x > 0 && (x & (x-1)) == 0;
 }
 
@@ -125,9 +127,43 @@ struct BitFields {
     BitField index;
 };
 
+struct TransactionCount {
+    int readCount;
+    int writeCount;
+    int migrateCount;
+    int totalCount;
+
+    void reset() {
+        readCount = 0;
+        writeCount = 0;
+        migrateCount = 0;
+        totalCount = 0;
+    }
+
+    void add(CommandType type) {
+        switch (type) {
+            case COMMAND_read:    readCount    += 1; break;
+            case COMMAND_write:   writeCount   += 1; break;
+            case COMMAND_migrate: migrateCount += 1; break;
+            default: assert(0);
+        }
+        totalCount += 1;
+    }
+
+    void remove(CommandType type) {
+        switch (type) {
+            case COMMAND_read:    readCount    -= 1; break;
+            case COMMAND_write:   writeCount   -= 1; break;
+            case COMMAND_migrate: migrateCount -= 1; break;
+            default: assert(0);
+        }
+        totalCount -= 1;
+    }
+};
+
 struct BankData {
-    int demandCount;
-    int supplyCount;
+    TransactionCount totalTransaction;
+    TransactionCount readyTransaction;
     int rowBuffer;
     int hitCount;
 };
@@ -149,37 +185,38 @@ class AssociativeTags
             DataType data;
         };
         
-        int set_count, way_count, line_shift;
-        Entry *entries;
-        Entry **sets;
+        int m_set_count, m_way_count, m_line_shift;
+        Entry *m_entries;
+        Entry **m_sets;
         
     public:
-        AssociativeTags(int size, int nway, int line) {
-            set_count = size/nway/line;
-            way_count = nway;
-            line_shift = log_2(line);
-            entries = new Entry[set_count*way_count];
-            sets    = new Entry*[set_count];
+        AssociativeTags(int size, int way_count, int line_size) {
+            m_set_count = size/way_count/line_size;
+            m_way_count = way_count;
+            m_line_shift = log_2(line_size);
+            m_entries = new Entry[m_set_count*m_way_count];
+            m_sets    = new Entry*[m_set_count];
             
-            for (int i=0; i<set_count; i+=1) {
-                sets[i] = &entries[i*way_count];
-                for (int j=0; j<way_count; j+=1) {
-                    sets[i][j].tag = -1;
-                    sets[i][j].next = &sets[i][j+1];
+            for (int i=0; i<m_set_count; i+=1) {
+                m_sets[i] = &m_entries[i*m_way_count];
+                for (int j=0; j<m_way_count-1; j+=1) {
+                    m_sets[i][j].tag = -1;
+                    m_sets[i][j].next = &m_sets[i][j+1];
                 }
-                sets[i][way_count-1].next = NULL;
+                m_sets[i][m_way_count-1].tag = -1;
+                m_sets[i][m_way_count-1].next = NULL;
             }
         }
         
         virtual ~AssociativeTags() {
-            delete [] entries;
-            delete [] sets;
+            delete [] m_entries;
+            delete [] m_sets;
         }
         
         bool probe(TagType tag) {
-            tag >>= line_shift;
-            int index = tag % set_count;
-            Entry *current = sets[index];
+            tag >>= m_line_shift;
+            int index = tag % m_set_count;
+            Entry *current = m_sets[index];
             while (current != NULL) {
                 if (current->tag == tag) {
                     return true;
@@ -190,18 +227,18 @@ class AssociativeTags
         }
         
         DataType& access(TagType tag, TagType &oldtag) {
-            tag >>= line_shift;
-            int index = tag % set_count;
+            tag >>= m_line_shift;
+            int index = tag % m_set_count;
             Entry *previous = NULL;
-            Entry *current = sets[index];
+            Entry *current = m_sets[index];
             while (current->tag != tag && current->next != NULL) {
                 previous = current;
                 current = current->next;
             }
             if (previous != NULL) {
                 previous->next = current->next;
-                current->next = sets[index];
-                sets[index] = current;
+                current->next = m_sets[index];
+                m_sets[index] = current;
             }
             oldtag = current->tag;
             if (current->tag != tag) {
@@ -214,43 +251,43 @@ class AssociativeTags
 template<class DataType>
 class Tier3 {
     private:
-        DataType ***data;
-        int count[3];
+        DataType ***m_data;
+        int m_count[3];
 
     public:
         Tier3(int tier1, int tier2, int tier3, DataType value) {
-            count[0] = tier1;
-            count[1] = tier2;
-            count[2] = tier3;
+            m_count[0] = tier1;
+            m_count[1] = tier2;
+            m_count[2] = tier3;
 
-            data = new DataType**[tier1];
+            m_data = new DataType**[tier1];
             for (int i=0; i<tier1; i+=1) {
-                data[i] = new DataType*[tier2];
+                m_data[i] = new DataType*[tier2];
                 for (int j=0; j<tier2; j+=1) {
-                    data[i][j] = new DataType[tier3];
+                    m_data[i][j] = new DataType[tier3];
                     for (int k=0; k<tier3; k+=1) {
-                        data[i][j][k] = value;
+                        m_data[i][j][k] = value;
                     }
                 }
             }
         }
 
         virtual ~Tier3() {
-            for (int i=0; i<count[0]; i+=1) {
-                for (int j=0; j<count[1]; j+=1) {
-                    delete [] data[i][j];
+            for (int i=0; i<m_count[0]; i+=1) {
+                for (int j=0; j<m_count[1]; j+=1) {
+                    delete [] m_data[i][j];
                 }
-                delete [] data[i];
+                delete [] m_data[i];
             }
-            delete [] data;
+            delete [] m_data;
         }
 
         DataType& item(int tier1, int tier2, int tier3) {
-            return data[tier1][tier2][tier3];
+            return m_data[tier1][tier2][tier3];
         }
 
         void swap(int tier1, int tier2, int tier3, int tier3P) {
-            DataType *last_tier = data[tier1][tier2];
+            DataType *last_tier = m_data[tier1][tier2];
             DataType temp = last_tier[tier3];
             last_tier[tier3] = last_tier[tier3P];
             last_tier[tier3P] = temp;

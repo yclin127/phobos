@@ -3,28 +3,16 @@
 
 using namespace DRAM;
 
-MemoryController::MemoryController(Config &config, MemoryMapping &mapping, int chid)
+MemoryController::MemoryController(Config &config, MemoryMapping &mapping, int chid) :
+    dramconfig(config),
+    channel_id(chid)
 {
-    max_row_hits = config.max_row_hits;
-    max_row_idle = config.max_row_idle;
-        
-    asym_mat_group = config.asym_mat_group;
-    asym_mat_ratio = config.asym_mat_ratio;
-
-    channel_id = chid;
-    
-    rankcount = config.rankcount;
-    bankcount = config.bankcount;
-    rowcount = config.rowcount;
-    groupcount = config.groupcount;
-    indexcount = config.indexcount;
-    refresh_interval = config.rank_timing.refresh_interval;
     channel = new Channel(&config);
     
     Coordinates coordinates = {0};
-    int refresh_step = refresh_interval/rankcount;
+    int refresh_step = dramconfig.rank_timing.refresh_interval/dramconfig.rankcount;
     
-    for (coordinates.rank=0; coordinates.rank<rankcount; ++coordinates.rank) {
+    for (coordinates.rank=0; coordinates.rank<dramconfig.rankcount; ++coordinates.rank) {
         // initialize rank
         RankData &rank = channel->getRankData(coordinates);
         rank.demandCount = 0;
@@ -32,10 +20,10 @@ MemoryController::MemoryController(Config &config, MemoryMapping &mapping, int c
         rank.refreshTime = refresh_step*(coordinates.rank+1);
         rank.is_sleeping = false;
         
-        for (coordinates.bank=0; coordinates.bank<bankcount; ++coordinates.bank) {
+        for (coordinates.bank=0; coordinates.bank<dramconfig.bankcount; ++coordinates.bank) {
             // initialize bank
             BankData &bank = channel->getBankData(coordinates);
-            bank.demandCount = 0;
+            bank.totalTransaction.reset();
             bank.rowBuffer = -1;
         }
     }
@@ -65,9 +53,9 @@ bool MemoryController::addTransaction(long clock, CommandType type, Coordinates 
     BankData &bank = channel->getBankData(coordinates);
     
     rank.demandCount += 1;
-    bank.demandCount += 1;
+    bank.totalTransaction.add(type);
     if (coordinates.row == bank.rowBuffer) {
-        bank.supplyCount += 1;
+        bank.readyTransaction.add(type);
     }
     
     return true;
@@ -104,14 +92,14 @@ bool MemoryController::addCommand(long clock, CommandType type, Coordinates &coo
     return true;
 }
 
-void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &missCompleted_)
+void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &lookupCompleted_)
 {
     /** Transaction to Command */
     
     // Refresh policy
     {
         Coordinates coordinates = {0};
-        for (coordinates.rank = 0; coordinates.rank < rankcount; ++coordinates.rank) {
+        for (coordinates.rank = 0; coordinates.rank < dramconfig.rankcount; ++coordinates.rank) {
             RankData &rank = channel->getRankData(coordinates);
             
             if (clock < rank.refreshTime) continue;
@@ -123,7 +111,7 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &mi
             }
             
             // Precharge
-            for (coordinates.bank = 0; coordinates.bank < bankcount; ++coordinates.bank) {
+            for (coordinates.bank = 0; coordinates.bank < dramconfig.bankcount; ++coordinates.bank) {
                 BankData &bank = channel->getBankData(coordinates);
                 
                 if (bank.rowBuffer != -1) {
@@ -136,7 +124,7 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &mi
             
             // Refresh
             if (!addCommand(clock, COMMAND_refresh, coordinates, NULL)) continue;
-            rank.refreshTime += refresh_interval;
+            rank.refreshTime += dramconfig.rank_timing.refresh_interval;
         }
     }
     
@@ -159,8 +147,8 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &mi
             
             // Precharge
             if (bank.rowBuffer != -1 && (bank.rowBuffer != coordinates.row || 
-                bank.hitCount >= max_row_hits)) {
-                if (bank.rowBuffer != coordinates.row && bank.supplyCount > 0) continue;
+                bank.hitCount >= dramconfig.max_row_hits)) {
+                if (bank.rowBuffer != coordinates.row && bank.readyTransaction.totalCount > 0) continue;
                 if (!addCommand(clock, COMMAND_precharge, coordinates, NULL)) continue;
                 rank.activeCount -= 1;
                 bank.rowBuffer = -1;
@@ -172,15 +160,15 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &mi
                 rank.activeCount += 1;
                 bank.rowBuffer = coordinates.row;
                 bank.hitCount = 0;
-                bank.supplyCount = 0;
-                
+
+                bank.readyTransaction.reset();
                 TransactionEntry *transaction2;
                 foreach_list_mutable(pendingTransactions_.list(), transaction2, entry2, nextentry2) {
                     Coordinates &coordinates2 = transaction2->coordinates;
                     if (coordinates2.rank == coordinates.rank && 
                         coordinates2.bank == coordinates.bank && 
                         coordinates2.row  == coordinates.row) {
-                        bank.supplyCount += 1;
+                        bank.readyTransaction.add(transaction2->type);
                     }
                 }
 
@@ -189,19 +177,27 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &mi
                 }
             }
             
+            switch (transaction->type) {
+                case COMMAND_migrate:
+                    if (bank.readyTransaction.writeCount > 0) continue;
+                case COMMAND_write:
+                    if (bank.readyTransaction.readCount > 0) continue;
+                case COMMAND_read:
+                    break;
+                default: assert(0);
+            }
+
             // Read / Write / Migrate
-            assert(bank.rowBuffer == coordinates.row);
-            assert(bank.supplyCount > 0);
             if (!addCommand(clock, transaction->type, coordinates, transaction->request)) continue;
             rank.demandCount -= 1;
-            bank.demandCount -= 1;
-            bank.supplyCount -= 1;
+            bank.totalTransaction.remove(transaction->type);
+            bank.readyTransaction.remove(transaction->type);
             bank.hitCount += 1;
 
             if (transaction->request) {
                 memoryCounter.accessCounter.count += 1;
                 if (transaction->missed) {
-                    if (coordinates.place % asym_mat_ratio == 0) {
+                    if (coordinates.place % dramconfig.asym_mat_ratio == 0) {
                         memoryCounter.accessCounter.fastSegment += 1;
                     } else {
                         memoryCounter.accessCounter.slowSegment += 1;
@@ -219,14 +215,14 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &mi
     {
         Coordinates coordinates = {0};
         coordinates.channel = channel_id;
-        for (coordinates.rank = 0; coordinates.rank < rankcount; ++coordinates.rank) {
+        for (coordinates.rank = 0; coordinates.rank < dramconfig.rankcount; ++coordinates.rank) {
             RankData &rank = channel->getRankData(coordinates);
-            for (coordinates.bank = 0; coordinates.bank < bankcount; ++coordinates.bank) {
+            for (coordinates.bank = 0; coordinates.bank < dramconfig.bankcount; ++coordinates.bank) {
                 BankData &bank = channel->getBankData(coordinates);
                 
-                if (bank.rowBuffer == -1 || bank.demandCount > 0) continue;
+                if (bank.rowBuffer == -1 || bank.totalTransaction.totalCount > 0) continue;
                 
-                int64_t idleTime = clock - max_row_idle;
+                int64_t idleTime = clock - dramconfig.max_row_idle;
                 if (!addCommand(idleTime, COMMAND_precharge, coordinates, NULL)) continue;
                 rank.activeCount -= 1;
                 bank.rowBuffer = -1;
@@ -237,7 +233,7 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &mi
     // Power down policy
     {
         Coordinates coordinates = {0};
-        for (coordinates.rank = 0; coordinates.rank < rankcount; ++coordinates.rank) {
+        for (coordinates.rank = 0; coordinates.rank < dramconfig.rankcount; ++coordinates.rank) {
             RankData &rank = channel->getRankData(coordinates);
             
             if (rank.is_sleeping || 
@@ -266,7 +262,7 @@ void MemoryController::schedule(long clock, Signal &accessCompleted_, Signal &mi
                     if (command->request) {
                         accessCompleted_.emit(command->request);
                     } else if (command->type == COMMAND_read) {
-                        missCompleted_.emit(&command->coordinates);
+                        lookupCompleted_.emit(&command->coordinates);
                     }
                     break;
                     

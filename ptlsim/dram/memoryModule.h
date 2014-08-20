@@ -83,15 +83,22 @@ struct Config {
     int clustercount;
     int groupcount;
     int indexcount;
-    
-    int max_row_hits;
+  
     int max_row_idle;
-    
-    int asym_det_threshold;
+    int max_row_hits;
+
     int asym_det_cache_size;
+    int asym_det_threshold;
+
+    int asym_map_profiling;
+    int asym_map_on_chip;
     int asym_map_cache_size;
-    int asym_mat_group;
+    int asym_map_cache_compact;
+
     int asym_mat_ratio;
+    int asym_mat_group;
+    int asym_rep_order;
+    int asym_rep_last;
     
     float clock;
     
@@ -124,8 +131,8 @@ struct Config {
     ) {
         ranksize = (long)SIZE<<20;
         
-        assert(is_pow_2(ranksize));
-        assert(is_pow_2(BANK));
+        assert(is_pow_of_2(ranksize));
+        assert(is_pow_of_2(BANK));
         assert(ranksize % BANK == 0);
         
         devicecount = DEVICE;
@@ -198,32 +205,38 @@ struct Config {
         rank_energy.precharge_powerdown_per_cycle = tCK*VDD*IDD2P1*DEVICE;
     }
 
-    void cache_setup(int rcd_ratio, int ras_ratio, int rp_ratio, int wr_ratio, int cl_ratio, int mig_ratio, int ap_ratio) {
-        if (rcd_ratio > 0) {
-            fast_bank_timing.act_to_read   -= slow_bank_timing.act_to_read   / rcd_ratio;
-            fast_bank_timing.act_to_write  -= slow_bank_timing.act_to_write  / rcd_ratio;
-        }
-        if (ras_ratio > 0) {
-            fast_bank_timing.act_to_pre    -= slow_bank_timing.act_to_pre    / ras_ratio;
-        }
-        if (rp_ratio > 0) {
-            fast_bank_timing.pre_to_act    -= slow_bank_timing.pre_to_act    / rp_ratio;
-        }
-        if (wr_ratio > 0) {
-            fast_bank_timing.write_to_pre  -= slow_bank_timing.write_latency / wr_ratio;
-        }
-        if (cl_ratio > 0) {
-            fast_bank_timing.read_latency  -= slow_bank_timing.read_latency  / cl_ratio;
-            fast_bank_timing.write_latency -= slow_bank_timing.write_latency / cl_ratio;
-        }
-        if (mig_ratio >= 0) {
-            slow_bank_timing.mig_latency   *= mig_ratio;
-            fast_bank_timing.mig_latency   *= mig_ratio;
-            rank_energy.migrate            *= mig_ratio;
-        }
-        if (ap_ratio > 0) {
-            rank_energy.actPre_fast -= rank_energy.actPre_slow / ap_ratio;
-        }
+    void cache_setup(float mig_percent, float ap_percent, 
+        float rcd_percent, float ras_percent, float rp_percent, float wr_percent, float cl_percent,
+        float rcd_percent2, float ras_percent2, float rp_percent2, float wr_percent2, float cl_percent2)
+    {
+        #define scale(value, percent) (value) = ((value)*(percent)+50)/100
+
+        // migrate latency
+        scale(slow_bank_timing.mig_latency,   mig_percent);
+        scale(fast_bank_timing.mig_latency,   mig_percent);
+
+        // actPre power for fast region
+        scale(rank_energy.actPre_fast,        ap_percent);
+
+        // timing for fast region
+        scale(fast_bank_timing.act_to_read,   rcd_percent);
+        scale(fast_bank_timing.act_to_write,  rcd_percent);
+        scale(fast_bank_timing.act_to_pre,    ras_percent);
+        scale(fast_bank_timing.pre_to_act,    rp_percent);
+        scale(fast_bank_timing.write_to_pre,  wr_percent);
+        scale(fast_bank_timing.read_latency,  cl_percent);
+        scale(fast_bank_timing.write_latency, cl_percent);
+
+        // timing for slow region
+        scale(slow_bank_timing.act_to_read,   rcd_percent2);
+        scale(slow_bank_timing.act_to_write,  rcd_percent2);
+        scale(slow_bank_timing.act_to_pre,    ras_percent2);
+        scale(slow_bank_timing.pre_to_act,    rp_percent2);
+        scale(slow_bank_timing.write_to_pre,  wr_percent2);
+        scale(slow_bank_timing.read_latency,  cl_percent2);
+        scale(slow_bank_timing.write_latency, cl_percent2);
+
+        #undef scale
     }
 };
 

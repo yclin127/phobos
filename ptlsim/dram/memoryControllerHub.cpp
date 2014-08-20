@@ -14,10 +14,8 @@
 
 
 namespace DRAM {
-    MemoryCounter memoryCounter = {
-        .accessCounter = {0},
-        .rowCounter = {0},
-    };
+    MemoryCounter memoryCounter;
+    //MemoryDistribution memoryDistribution;
 };
 
 using namespace DRAM;
@@ -31,52 +29,69 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
     memoryHierarchy_->add_cache_mem_controller(this, true);
     
     int max_row_hits, max_row_idle;
-    int asym_det_threshold, asym_det_cache_size;
-    int asym_map_cache_size;
-    int asym_mat_ratio, asym_mat_group;
-    int asym_mat_rcd_ratio, asym_mat_ras_ratio, 
-        asym_mat_rp_ratio, asym_mat_wr_ratio, 
-        asym_mat_cl_ratio, asym_mat_mig_ratio;
-    int asym_mat_ap_ratio;
+    int asym_det_cache_size, asym_det_threshold;
+    int asym_map_profiling, asym_map_on_chip;
+    int asym_map_cache_size, asym_map_cache_compact;
+    int asym_mat_ratio, asym_mat_group, asym_rep_order, asym_rep_last;
+
+    int asym_mat_mig_percent, asym_mat_ap_percent;
+    int asym_mat_rcd_percent, asym_mat_ras_percent, 
+        asym_mat_rp_percent, asym_mat_wr_percent, 
+        asym_mat_cl_percent;
+    int asym_mat_rcd_percent2, asym_mat_ras_percent2, 
+        asym_mat_rp_percent2, asym_mat_wr_percent2, 
+        asym_mat_cl_percent2;
     
     {
         BaseMachine &machine = memoryHierarchy_->get_machine();
 #define option(var,opt,val) machine.get_option(name, opt, var) || (var = val)
         option(channelcount, "channel", 1);
-        
-        option(max_row_hits, "max_row_hits", 4);
+
         option(max_row_idle, "max_row_idle", 0);
+        option(max_row_hits, "max_row_hits", 4);
 
-        option(asym_det_threshold, "asym_det_threshold", 4);
         option(asym_det_cache_size, "asym_det_cache_size", 1024);
+        option(asym_det_threshold, "asym_det_threshold", 1);
 
+        option(asym_map_profiling, "asym_map_profiling", 0);
+        option(asym_map_on_chip, "asym_map_on_chip", 0);
         option(asym_map_cache_size, "asym_map_cache_size", 256);
         asym_map_cache_size *= 1024;
+        option(asym_map_cache_compact, "asym_map_cache_compact", 1);
 
         option(asym_mat_ratio, "asym_mat_ratio", 1);
-        option(asym_mat_group, "asym_mat_group", 1);
+        option(asym_mat_group, "asym_mat_group", 64);
+        option(asym_rep_order, "asym_rep_order", 0);
+        option(asym_rep_last, "asym_rep_last", 0);
 
-        option(asym_mat_rcd_ratio, "asym_mat_rcd_ratio", 0);
-        option(asym_mat_ras_ratio, "asym_mat_ras_ratio", 0);
-        option(asym_mat_rp_ratio, "asym_mat_rp_ratio", 0);
-        option(asym_mat_wr_ratio, "asym_mat_wr_ratio", 0);
-        option(asym_mat_cl_ratio, "asym_mat_cl_ratio", 0);
-        option(asym_mat_mig_ratio, "asym_mat_mig_ratio", 3);
-        option(asym_mat_ap_ratio, "asym_mat_ap_ratio", 2);
+        option(asym_mat_mig_percent, "asym_mat_mig_percent", 300);
+        option(asym_mat_ap_percent, "asym_mat_ap_percent", 50);
+
+        option(asym_mat_rcd_percent, "asym_mat_rcd_percent", 100);
+        option(asym_mat_ras_percent, "asym_mat_ras_percent", 100);
+        option(asym_mat_rp_percent, "asym_mat_rp_percent", 100);
+        option(asym_mat_wr_percent, "asym_mat_wr_percent", 100);
+        option(asym_mat_cl_percent, "asym_mat_cl_percent", 100);
+
+        option(asym_mat_rcd_percent2, "asym_mat_rcd_percent2", 100);
+        option(asym_mat_ras_percent2, "asym_mat_ras_percent2", 100);
+        option(asym_mat_rp_percent2, "asym_mat_rp_percent2", 100);
+        option(asym_mat_wr_percent2, "asym_mat_wr_percent2", 100);
+        option(asym_mat_cl_percent2, "asym_mat_cl_percent2", 100);
 #undef option
     }
     
     {
         assert(asym_det_threshold > 0);
         assert(asym_det_cache_size > 0 && asym_det_cache_size % 4 == 0);
-        assert(is_pow_2(asym_mat_ratio));
-        assert(is_pow_2(asym_mat_group));
+        assert(is_pow_of_2(asym_mat_ratio));
+        assert(is_pow_of_2(asym_mat_group));
         assert(asym_mat_group % asym_mat_ratio == 0);
 
         dramconfig = *get_dram_config(type);
 
-        assert(is_pow_2(ram_size));
-        assert(is_pow_2(channelcount));
+        assert(is_pow_of_2(ram_size));
+        assert(is_pow_of_2(channelcount));
 
         dramconfig.channelcount = channelcount;
         dramconfig.rankcount    = ram_size / 
@@ -92,23 +107,34 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         dramconfig.groupcount   = dramconfig.rowcount / asym_mat_group;
         dramconfig.indexcount   = asym_mat_group;
 
-        //assert(is_pow_2(dramconfig.channelcount));
-        assert(is_pow_2(dramconfig.rankcount));
-        assert(is_pow_2(dramconfig.rowcount));
-        assert(is_pow_2(dramconfig.clustercount));
-        assert(is_pow_2(dramconfig.groupcount));
-        //assert(is_pow_2(dramconfig.indexcount));
-        
-        dramconfig.max_row_hits = max_row_hits;
+        //assert(is_pow_of_2(dramconfig.channelcount));
+        assert(is_pow_of_2(dramconfig.rankcount));
+        assert(is_pow_of_2(dramconfig.rowcount));
+        assert(is_pow_of_2(dramconfig.clustercount));
+        assert(is_pow_of_2(dramconfig.groupcount));
+        //assert(is_pow_of_2(dramconfig.indexcount));
+
         dramconfig.max_row_idle = max_row_idle;
-        
-        dramconfig.asym_det_threshold = asym_det_threshold;
+        dramconfig.max_row_hits = max_row_hits;
+
         dramconfig.asym_det_cache_size = asym_det_cache_size;
+        dramconfig.asym_det_threshold = asym_det_threshold;
+
+        dramconfig.asym_map_profiling = asym_map_profiling;
+        dramconfig.asym_map_on_chip = asym_map_on_chip;
         dramconfig.asym_map_cache_size = asym_map_cache_size;
+        dramconfig.asym_map_cache_compact = asym_map_cache_compact;
+
         dramconfig.asym_mat_ratio = asym_mat_ratio;
         dramconfig.asym_mat_group = asym_mat_group;
-        dramconfig.cache_setup(asym_mat_rcd_ratio, asym_mat_ras_ratio, asym_mat_rp_ratio,
-            asym_mat_wr_ratio, asym_mat_cl_ratio, asym_mat_mig_ratio, asym_mat_ap_ratio);
+        dramconfig.asym_rep_order = asym_rep_order;
+        dramconfig.asym_rep_last = asym_rep_last;
+
+        dramconfig.cache_setup(asym_mat_mig_percent, asym_mat_ap_percent, 
+            asym_mat_rcd_percent, asym_mat_ras_percent, asym_mat_rp_percent, 
+            asym_mat_wr_percent, asym_mat_cl_percent,
+            asym_mat_rcd_percent2, asym_mat_ras_percent2, asym_mat_rp_percent2, 
+            asym_mat_wr_percent2, asym_mat_cl_percent2);
     }
     
     {
@@ -125,8 +151,8 @@ MemoryControllerHub::MemoryControllerHub(W8 coreid, const char *name,
         controller[channel] = new MemoryController(dramconfig, *mapping, channel);
     }
     
-    SET_SIGNAL_CB(name, "_Miss_Completed", missCompleted_,
-            &MemoryControllerHub::miss_completed_cb);
+    SET_SIGNAL_CB(name, "_Lookup_Completed", lookupCompleted_,
+            &MemoryControllerHub::lookup_completed_cb);
     
     SET_SIGNAL_CB(name, "_Access_Completed", accessCompleted_,
             &MemoryControllerHub::access_completed_cb);
@@ -188,7 +214,7 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
                  * don't merge to maintain the serialization
                  * order
                  */
-                if(!entry->issued && entry->request->get_type() ==
+                if(!entry->stage <= STAGE_issue && entry->request->get_type() ==
                         MEMORY_OP_UPDATE) {
                     /*
                      * We can merge the request, so in simulation
@@ -229,18 +255,14 @@ bool MemoryControllerHub::handle_interconnect_cb(void *arg)
         default:
             assert(0);
     }
-    
-    // translate address to dram coordinates
-    W64 address = message->request->get_physical_address();
-    mapping->extract(address, queueEntry->coordinates);
+
+    issue(queueEntry, message->request->get_init_insns(), message->request->get_physical_address());
 
     queueEntry->request = message->request;
     queueEntry->source = (Controller*)message->origin;
 
     queueEntry->request->incRefCounter();
     ADD_HISTORY_ADD(queueEntry->request);
-
-    memoryCounter.accessCounter.queueLength += pendingRequests_.count()-1;
     
     return true;
 }
@@ -256,16 +278,15 @@ bool MemoryControllerHub::access_completed_cb(void *arg)
 {
     RequestEntry *queueEntry = (RequestEntry*)arg;
     
-    if(!queueEntry->annuled) {
+    if(queueEntry->stage != STAGE_annul) {
 
         /* Send response back to cache */
         //memdebug("Memory access done for Request: ", *queueEntry->request, endl);
 
         wait_interconnect_cb(queueEntry);
     } else {
-        queueEntry->request->decRefCounter();
-        ADD_HISTORY_REM(queueEntry->request);
-        pendingRequests_.free(queueEntry);
+        //retire(queueEntry);
+        queueEntry->respounded = true;
     }
 
     return true;
@@ -280,9 +301,8 @@ bool MemoryControllerHub::wait_interconnect_cb(void *arg)
     /* Don't send response if its a memory update request */
     switch (queueEntry->request->get_type()) {
         case MEMORY_OP_UPDATE:
-            queueEntry->request->decRefCounter();
-            ADD_HISTORY_REM(queueEntry->request);
-            pendingRequests_.free(queueEntry);
+            //retire(queueEntry);
+            queueEntry->respounded = true;
             return true;
         default:
             break;
@@ -305,95 +325,141 @@ bool MemoryControllerHub::wait_interconnect_cb(void *arg)
         /* Failed to response to cache, retry after 1 cycle */
         marss_add_event(&waitInterconnect_, 1, queueEntry);
     } else {
-        queueEntry->request->decRefCounter();
-        ADD_HISTORY_REM(queueEntry->request);
-        pendingRequests_.free(queueEntry);
-
-        if(!pendingRequests_.isFull()) {
-            memoryHierarchy_->set_controller_full(this, false);
-        }
+        //retire(queueEntry);
+        queueEntry->respounded = true;
     }
     
     return true;
 }
 
+void MemoryControllerHub::issue(RequestEntry *request, int cycle, W64 address)
+{
+    // address mapping
+    mapping->translate(address, request->coordinates);
+    // update statistics
+    if (!mapping->allocate(cycle, request->coordinates)) {
+        memoryCounter.rowCounter.count += 1;
+    }
+    // bypass translation if there's no fast level
+    if (dramconfig.asym_mat_ratio == 1) {
+        request->stage = STAGE_issue;
+    } else {
+        request->stage = STAGE_translate;
+    }
+}
+
+void MemoryControllerHub::retire(RequestEntry *request)
+{
+    request->request->decRefCounter();
+    ADD_HISTORY_REM(request->request);
+    pendingRequests_.free(request);
+    
+    if(!pendingRequests_.isFull()) {
+        memoryHierarchy_->set_controller_full(this, false);
+    }
+}
+
 void MemoryControllerHub::dispatch(long clock)
 {
-    RequestEntry *request;
-    MemoryStatable *mem_stat;
+    RequestEntry *queueEntry;
 
-    foreach_list_mutable(pendingRequests_.list(), request, entry, nextentry) {
-        mem_stat = request->request->get_memoryStat();
+    foreach_list_mutable(pendingRequests_.list(), queueEntry, entry, nextentry) {
+        switch (queueEntry->stage) {
+            case STAGE_translate:
+            {
+                if (!mapping->probe(queueEntry->coordinates)) {
+                    W64 tag = queueEntry->coordinates.tag;
+                    if (lookup_queue.find(tag) == lookup_queue.end()) {
+                        Coordinates tag_coordinates;
 
-        if (!request->translated) {
-            if (!mapping->translate(request->coordinates)) {
-                W64 tag = mapping->make_index_tag(request->coordinates);
-                if (mapping_misses.find(tag) == mapping_misses.end() &&
-                    mapping_misses.size() < 8) {
-                    Coordinates tag_coordinates;
-                    mapping->extract(tag, tag_coordinates);
-                    tag_coordinates.row += dramconfig.rowcount;
-                    tag_coordinates.group = tag;
-                    tag_coordinates.place = 0;
+                        mapping->translate(tag, tag_coordinates);
+                        tag_coordinates.row += dramconfig.rowcount;
+                        tag_coordinates.place = 0;
+                        tag_coordinates.tag = tag;
 
-                    MemoryController *mc = controller[tag_coordinates.channel];
-                    if (!mc->addTransaction(clock, COMMAND_read, tag_coordinates, NULL)) continue;
-                    mapping_misses[tag] = clock;
-                    memoryCounter.rowCounter.query += 1;
+                        MemoryController *mc = controller[tag_coordinates.channel];
+                        if (!mc->addTransaction(clock, COMMAND_read, tag_coordinates, NULL)) continue;
+
+                        lookup_queue[tag] = clock;
+                        memoryCounter.rowCounter.query += 1;
+                    }
+                    continue;
                 }
-                continue;
+
+                queueEntry->stage = STAGE_issue;
             }
+            break;
 
-            request->detected = mapping->detect(request->coordinates);
-            if (!mapping->allocate(request->coordinates)) {
-                memoryCounter.rowCounter.count += 1;
+            case STAGE_issue:
+            {
+                MemoryController *mc = controller[queueEntry->coordinates.channel];
+                if (!mc->addTransaction(clock, queueEntry->type, queueEntry->coordinates, queueEntry)) continue;
+                
+                if (mapping->detect(queueEntry->coordinates)) {
+                    queueEntry->stage = STAGE_update;
+                } else {
+                    queueEntry->stage = STAGE_finish;
+                }
             }
+            break;
 
-            request->translated = true;
-        }
-        
-        if (!request->issued) {
-            MemoryController *mc = controller[request->coordinates.channel];
-            if (!mc->addTransaction(clock, request->type, request->coordinates, request)) continue;
-
-            request->issued = true;
-        }
-        
-        if (request->detected) {
-            if (!request->updated) {
-                W64 tag = mapping->make_index_tag(request->coordinates);
+            case STAGE_update:
+            {
+                W64 tag = queueEntry->coordinates.tag;
                 Coordinates tag_coordinates;
-                mapping->extract(tag, tag_coordinates);
+
+                mapping->translate(tag, tag_coordinates);
                 tag_coordinates.row += dramconfig.rowcount;
-                tag_coordinates.group = tag;
                 tag_coordinates.place = 0;
 
                 MemoryController *mc = controller[tag_coordinates.channel];
                 if (!mc->addTransaction(clock, COMMAND_write, tag_coordinates, NULL)) continue;
 
-                request->updated = true;
+                queueEntry->stage = STAGE_migrate;
             }
+            break;
 
-            MemoryController *mc = controller[request->coordinates.channel];
-            if (!mc->addTransaction(clock, COMMAND_migrate, request->coordinates, NULL)) continue;
+            case STAGE_migrate:
+            {
+                MemoryController *mc = controller[queueEntry->coordinates.channel];
+                if (!mc->addTransaction(clock, COMMAND_migrate, queueEntry->coordinates, NULL)) continue;
 
-            memoryCounter.rowCounter.migration += 1;
-            if (mapping->promote(clock, request->coordinates)) {
-                memoryCounter.rowCounter.remigration += 1;
+                memoryCounter.rowCounter.migration += 1;
+                if (mapping->promote(clock, queueEntry->coordinates)) {
+                    memoryCounter.rowCounter.remigration += 1;
+                }
+
+                queueEntry->stage = STAGE_finish;
             }
+            break;
 
-            request->detected = false;
+            case STAGE_annul:
+            case STAGE_finish:
+            {
+                if (queueEntry->respounded) {
+                    retire(queueEntry);
+                }
+            }
+            break;
+
+            case STAGE_unknown:
+            {
+                assert(queueEntry->stage != STAGE_unknown);
+            }
+            break;
         }
     }
 }
 
-bool MemoryControllerHub::miss_completed_cb(void *arg)
+bool MemoryControllerHub::lookup_completed_cb(void *arg)
 {
     Coordinates *coordinates = (Coordinates*)arg;
-    
-    W64 tag = coordinates->group;
-    assert(mapping_misses.find(tag) != mapping_misses.end());
-    mapping_misses.erase(tag);
+
+    W64 tag = coordinates->tag;
+
+    assert(lookup_queue.find(tag) != lookup_queue.end());
+    lookup_queue.erase(tag);
+
     mapping->update(tag);
 
     return true;
@@ -406,12 +472,12 @@ void MemoryControllerHub::cycle()
         dispatch(clock_mem);
         for (int channel=0; channel<channelcount; ++channel) {
             controller[channel]->channel->cycle(clock_mem);
-            controller[channel]->schedule(clock_mem, accessCompleted_, missCompleted_);
+            controller[channel]->schedule(clock_mem, accessCompleted_, lookupCompleted_);
         }
         clock_mem += 1;
         clock_rem -= clock_den;
 
-        memoryCounter.energyCounter.actPre = 0;
+        /*memoryCounter.energyCounter.actPre = 0;
         memoryCounter.energyCounter.read = 0;
         memoryCounter.energyCounter.write = 0;
         memoryCounter.energyCounter.refresh = 0;
@@ -433,7 +499,7 @@ void MemoryControllerHub::cycle()
                 controller[channel]->channel->getEnergy(ENERGY_background);
             memoryCounter.energyCounter.total += 
                 controller[channel]->channel->getEnergy(ENERGY_total);
-        }
+        }*/
     }
 }
 
@@ -443,11 +509,9 @@ void MemoryControllerHub::annul_request(MemoryRequest *request)
     foreach_list_mutable(pendingRequests_.list(), queueEntry,
             entry, nextentry) {
         if(queueEntry->request->is_same(request)) {
-            queueEntry->annuled = true;
-            if(!queueEntry->issued) {
-                queueEntry->request->decRefCounter();
-                ADD_HISTORY_REM(queueEntry->request);
-                pendingRequests_.free(queueEntry);
+            queueEntry->stage = STAGE_annul;
+            if(queueEntry->stage <= STAGE_issue) {
+                retire(queueEntry);
             }
         }
     }
